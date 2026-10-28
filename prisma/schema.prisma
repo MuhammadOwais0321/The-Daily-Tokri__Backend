@@ -118,6 +118,12 @@ enum AuditActorType {
   SYSTEM_TRIGGER
 }
 
+enum VerificationType {
+  EMAIL_VERIFICATION
+  RESET_PASSWORD
+  CHANGE_PASSWORD
+}
+
 // ----------------------------------------------------
 // 1. USERS & PROFILE
 // ----------------------------------------------------
@@ -128,9 +134,10 @@ model User {
   passwordHash String    @db.VarChar(255)
   name         String    @db.VarChar(100)
   phone        String?   @unique @db.VarChar(20)
-  role         UserRole  @default(CUSTOMER)
-  isActive     Boolean   @default(true)
-  deletedAt    DateTime?
+  role            UserRole         @default(CUSTOMER)
+  isActive        Boolean          @default(true)
+  isEmailVerified Boolean          @default(false)
+  deletedAt       DateTime?
   lastLoginAt  DateTime?
   totalOrders  Int       @default(0)
   totalSpent   Decimal   @default(0) @db.Decimal(10, 2)
@@ -182,15 +189,16 @@ model UserPreference {
 }
 
 model VerificationCode {
-  id        String   @id @default(uuid())
-  email     String   @db.VarChar(255)
-  code      String   @db.VarChar(255)
-  type      String   @default("CHANGE_PASSWORD") @db.VarChar(50)
+  id        String           @id @default(uuid())
+  email     String           @db.VarChar(255)
+  code      String           @db.VarChar(255)
+  type      VerificationType @default(EMAIL_VERIFICATION)
   expiresAt DateTime
-  isUsed    Boolean  @default(false)
+  isUsed    Boolean          @default(false)
+  attempts  Int              @default(0)
   userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  user      User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
 
   @@index([email, type])
   @@index([expiresAt])

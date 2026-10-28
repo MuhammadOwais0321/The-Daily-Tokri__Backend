@@ -7,11 +7,13 @@ export interface AuthUser {
   email: string;
   role: UserRole | string;
   isActive: boolean;
+  isEmailVerified?: boolean;
 }
 
 export interface JwtPayload {
   sub?: string;
   role?: UserRole | string;
+  tokenType?: 'access' | 'refresh';
   [key: string]: unknown;
 }
 

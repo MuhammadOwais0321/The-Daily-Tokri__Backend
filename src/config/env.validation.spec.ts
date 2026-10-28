@@ -4,11 +4,15 @@ describe('validateEnvironment', () => {
   it('should pass validation when valid JWT_SECRET is provided', () => {
     const config = {
       JWT_SECRET: 'super-secure-jwt-secret-key-123456',
+      JWT_REFRESH_SECRET: 'super-secure-refresh-key-123456',
       PORT: '4000',
     };
 
     const validated = validateEnvironment(config);
     expect(validated.JWT_SECRET).toBe('super-secure-jwt-secret-key-123456');
+    expect(validated.JWT_REFRESH_SECRET).toBe(
+      'super-secure-refresh-key-123456',
+    );
     expect(validated.PORT).toBe(4000);
   });
 

@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { ErrorsExceptionFilter } from './filters/errors.exception.filter';
 
@@ -10,6 +11,13 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   const isProd = configService.get<string>('NODE_ENV') === 'production';
+
+  app.enableCors({
+    origin: true,
+    credentials: true,
+  });
+
+  app.use(cookieParser());
 
   app.use(
     helmet({

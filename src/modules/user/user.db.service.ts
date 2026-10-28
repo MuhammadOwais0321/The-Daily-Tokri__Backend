@@ -4,7 +4,7 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import { Prisma, User, UserRole } from '@prisma/client';
+import { Prisma, User, UserRole, VerificationType } from '@prisma/client';
 import { DatabaseService } from '../../database/database.service';
 
 export interface CreateUserData {
@@ -14,6 +14,7 @@ export interface CreateUserData {
   phone?: string | null;
   role?: UserRole;
   isActive?: boolean;
+  isEmailVerified?: boolean;
 }
 
 @Injectable()
@@ -59,7 +60,7 @@ export class UserDbService {
     code: string;
     expiresAt: Date;
     userId?: string;
-    type?: string;
+    type?: VerificationType;
   }) {
     return this.databaseService.verificationCode.create({
       data: {
@@ -67,12 +68,12 @@ export class UserDbService {
         code: data.code,
         expiresAt: data.expiresAt,
         userId: data.userId ?? null,
-        type: data.type ?? 'CHANGE_PASSWORD',
+        type: data.type ?? VerificationType.EMAIL_VERIFICATION,
       },
     });
   }
 
-  async findValidVerificationCode(email: string, type: string) {
+  async findValidVerificationCode(email: string, type: VerificationType) {
     return this.databaseService.verificationCode.findFirst({
       where: {
         email,
@@ -88,11 +89,38 @@ export class UserDbService {
     });
   }
 
-  async deleteVerificationCodesByEmail(email: string, type: string) {
+  async deleteVerificationCodesByEmail(email: string, type: VerificationType) {
     return this.databaseService.verificationCode.deleteMany({
       where: {
         email,
         type,
+      },
+    });
+  }
+
+  async markEmailAsVerified(userId: string): Promise<User> {
+    return this.databaseService.user.update({
+      where: { id: userId },
+      data: { isEmailVerified: true },
+    });
+  }
+
+  async incrementVerificationAttempts(id: string) {
+    return this.databaseService.verificationCode.update({
+      where: { id },
+      data: {
+        attempts: {
+          increment: 1,
+        },
+      },
+    });
+  }
+
+  async markVerificationCodeAsUsed(id: string) {
+    return this.databaseService.verificationCode.update({
+      where: { id },
+      data: {
+        isUsed: true,
       },
     });
   }
@@ -115,6 +143,7 @@ export class UserDbService {
           phone: data.phone ?? null,
           role: data.role ?? UserRole.CUSTOMER,
           isActive: data.isActive ?? true,
+          isEmailVerified: data.isEmailVerified ?? false,
         },
       });
     } catch (error: unknown) {

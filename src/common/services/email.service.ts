@@ -34,15 +34,19 @@ export class EmailService {
     }
   }
 
-  async sendVerificationCode(email: string, code: string): Promise<boolean> {
+  async sendVerificationCode(
+    email: string,
+    code: string,
+    purpose: string = 'Verification',
+  ): Promise<boolean> {
     const from =
       this.configService.get<string>('EMAIL_FROM') ?? 'noreply@onlinemart.com';
-    const subject = 'Your Verification Code';
+    const subject = `${purpose} Code - The Daily Tokri`;
     const html = `
-      <div style="font-family: Arial, sans-serif; padding: 20px;">
-        <h2>Password Verification</h2>
+      <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+        <h2 style="color: #1e293b;">${purpose}</h2>
         <p>Your verification code is:</p>
-        <h1 style="letter-spacing: 5px; color: #2563eb;">${code}</h1>
+        <h1 style="letter-spacing: 5px; color: #2563eb; font-size: 32px;">${code}</h1>
         <p>This code will expire in 15 minutes.</p>
         <p>If you did not request this, please ignore this email.</p>
       </div>

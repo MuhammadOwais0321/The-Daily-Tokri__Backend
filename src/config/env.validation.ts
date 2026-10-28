@@ -20,6 +20,17 @@ export class EnvironmentVariables {
   JWT_EXPIRES_IN?: string;
 
   @IsString()
+  @IsNotEmpty({ message: 'JWT_REFRESH_SECRET is required and cannot be empty' })
+  @MinLength(16, {
+    message: 'JWT_REFRESH_SECRET must be at least 16 characters long',
+  })
+  JWT_REFRESH_SECRET: string;
+
+  @IsString()
+  @IsOptional()
+  JWT_REFRESH_EXPIRES_IN?: string;
+
+  @IsString()
   @IsOptional()
   URL_PREFIX?: string;
 
@@ -30,6 +41,18 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   DATABASE_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  ADMIN_EMAIL?: string;
+
+  @IsString()
+  @IsOptional()
+  ADMIN_PASSWORD?: string;
+
+  @IsString()
+  @IsOptional()
+  ADMIN_NAME?: string;
 }
 
 export function validateEnvironment(

@@ -7,6 +7,7 @@ export interface SafeUser {
   phone: string | null;
   role: string;
   isActive: boolean;
+  isEmailVerified: boolean;
   createdAt: Date;
 }
 
@@ -28,6 +29,7 @@ export function toSafeUser(user: User): SafeUser {
     phone: user.phone,
     role: user.role,
     isActive: user.isActive,
+    isEmailVerified: user.isEmailVerified,
     createdAt: user.createdAt,
   };
 }

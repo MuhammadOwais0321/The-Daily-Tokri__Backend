@@ -15,6 +15,7 @@
   <img src="https://img.shields.io/badge/PostgreSQL-16+-336791.svg" alt="PostgreSQL" />
   <img src="https://img.shields.io/badge/TypeScript-5.x-3178c6.svg" alt="TypeScript" />
   <img src="https://img.shields.io/badge/JWT-Authentication-black.svg" alt="JWT" />
+  <img src="https://img.shields.io/badge/Cookie--Parser-Refresh%20Token-orange.svg" alt="Cookie Parser" />
   <img src="https://img.shields.io/badge/Security-Helmet%20%2B%20Throttler-green.svg" alt="Security" />
 </p>
 
@@ -22,9 +23,11 @@
 
 ## 📌 Project Overview (Project Ka Khulasa)
 
-**The-Daily-Tokri** ek modern grocery e-commerce platform ka backend API server hai. Is project ka core focus high performance, enterprise security standards, data integrity aur modular scalable architecture par hai. 
+**The-Daily-Tokri** ek modern grocery e-commerce platform ka backend API server hai. Is project ka core focus high performance, enterprise security standards, data integrity aur modular scalable architecture par hai.
 
 Is document mein project ki **abhi tak ki mukammal progress (Current Progress Status)**, implemented features, database schema, active endpoints, aur next steps ka tafseeli record mojood hai.
+
+> **Last Updated:** October 29, 2026
 
 ---
 
@@ -32,40 +35,43 @@ Is document mein project ki **abhi tak ki mukammal progress (Current Progress St
 
 | Area / Module | Status | Progress | Remarks |
 |---|:---:|:---:|---|
-| **System Architecture & App Setup** | ✅ Completed | 100% | NestJS 11, Global Prefix `/api/v1`, ConfigModule, ScheduleModule, ThrottlerModule |
-| **Database & Schema Design (Prisma)** | ✅ Completed | 100% | 17+ Models, Complete Enums, Relations, Initial Migration Generated |
+| **System Architecture & App Setup** | ✅ Completed | 100% | NestJS 11, Global Prefix `/api/v1`, ConfigModule, ScheduleModule, ThrottlerModule, CookieParser |
+| **Database & Schema Design (Prisma)** | ✅ Completed | 100% | 17+ Models, Complete Enums, Relations, 2 Migrations Applied |
 | **Security & HTTP Hardening** | ✅ Completed | 100% | Helmet, Custom Throttler Guard (Rate-limiting), Global ValidationPipe, Exception Filter |
-| **Authentication & Password Management** | ✅ Completed | 100% | Register, Login, JWT Guard, Forgot/Reset Password via 6-digit OTP, Change Password |
+| **Authentication & Password Management** | ✅ Completed | 100% | Register, Email Verify, Login (JWT + HttpOnly Refresh Cookie), Refresh Token Rotation, Logout, Forgot/Reset Password via OTP, Change Password |
 | **Email Service (Nodemailer)** | ✅ Completed | 100% | SMTP configuration, HTML OTP template, Dev mode auto-fallback |
 | **Background Cron Tasks** | ✅ Completed | 100% | Automated cleanup cron running every 30 minutes for expired verification codes |
-| **Audit Logging Engine** | 🟡 Active Foundation | 75% | `AuditService` log system active; DB persistence scaffolded |
+| **Audit Logging Engine** | 🟡 Active Foundation | 75% | `AuditService` fire-and-forget logger active; DB persistence (`AuditDbService`) scaffolded |
 | **Health Check API** | ✅ Completed | 100% | `/api/v1/health` with server uptime & timestamps |
-| **User & Profile Management** | 🟡 Core Ready | 60% | `UserDbService` fully implemented for Auth; Controller & DTOs scaffolded |
-| **Catalog (Categories, Brands, Suppliers)** | ⚙️ Scaffolded | 40% | DTOs, Controllers, Services structured; Prisma models ready |
+| **User & Profile Management** | 🟡 Core Ready | 60% | `UserDbService` fully implemented for Auth; `UserService` controller & DTOs scaffolded |
+| **Catalog (Categories, Brands, Suppliers)** | ⚙️ Scaffolded | 40% | DTOs, Controllers, `*.db.service.ts` structured; Prisma models ready; business logic pending |
 | **Products & Inventory / Batches** | ⚙️ Scaffolded | 40% | Full Prisma schema, DTOs, controllers mapped; Business logic pending |
 | **Cart & Order Lifecycle** | ⚙️ Scaffolded | 40% | DTOs, state machine enums ready; Controllers registered |
-| **Payment Gateway (Mock / Stripe)** | ⚙️ Scaffolded | 40% | Webhook DTOs & initiation endpoints scaffolded |
+| **Payment Gateway (Mock)** | ⚙️ Scaffolded | 40% | Webhook DTOs & initiation endpoints scaffolded |
 | **Reviews, Notifications & Events** | ⚙️ Scaffolded | 40% | DTOs, controllers and SSE route structures in place |
 | **Admin Dashboard & Analytics** | ⚙️ Scaffolded | 40% | Query DTOs, metrics & export endpoints defined |
+| **Database Seed** | ⚙️ Present | —% | `prisma/seed.ts` exists; seed script configured in `package.json` |
 
 ---
 
 ## 🚀 Mukammal Implemented Features (Completed Details)
 
 ### 1. Database & Prisma ORM (`prisma/schema.prisma`)
-Poore application ka relational schema PostgreSQL ke liye tayyar aur migrate ho chuka hai:
-- **Migration**: `20261022213126_init` applied.
-- **Models**:
-  - `User`: Email, PasswordHash, Phone, UserRole (ADMIN, CUSTOMER), order statistics.
+Poore application ka relational schema PostgreSQL ke liye tayyar aur 2 migrations apply ho chuke hain:
+- **Migrations**:
+  - `20261022213126_init` — Full base schema.
+  - `20261028213500_add_verification_and_email_verified` — `VerificationCode` type enum & `isEmailVerified` field added to `User`.
+- **Models (17+)**:
+  - `User`: Email, PasswordHash, Phone, UserRole (ADMIN, CUSTOMER), `isEmailVerified`, `lastLoginAt`, order statistics.
   - `Address`: Addresses with labels (HOME, WORK, OTHER) and coordinates.
   - `UserPreference`: Push & Email notification toggles.
-  - `VerificationCode`: OTP storage for password recovery with expiry & usage status.
+  - `VerificationCode`: OTP storage with `VerificationType` enum (`EMAIL_VERIFICATION`, `PASSWORD_RESET`), expiry & usage status.
   - `Category`: Self-referencing hierarchical structure (`parentId`, `depth`, `path`, `isLeaf`).
   - `Brand` & `Supplier`: Vendor aur brand data models.
-  - `Product`, `ProductImage`, `ProductAllergen`: Products with multi-image ordering, storage conditions, allergens, and units of measure.
-  - `Inventory`, `InventoryBatch`, `InventoryTransaction`: Real-time stock counts, FEFO batch tracking, and transaction ledger.
+  - `Product`, `ProductImage`, `ProductAllergen`: Products with multi-image ordering, storage conditions (`StorageType`), allergens (`AllergenPresence`), and units of measure (`UnitOfMeasure`).
+  - `Inventory`, `InventoryBatch`, `InventoryTransaction`: Real-time stock counts (`StockStatus`), FEFO batch tracking (`BatchStatus`), and transaction ledger (`TransactionType`, `AdjustmentReason`).
   - `Cart` & `CartItem`: Persistent shopping carts.
-  - `Order`, `OrderItem`, `OrderAddress`: Orders with detailed lifecycle states (`PENDING`, `CONFIRMED`, `PROCESSING`, `DELIVERED`, `CANCELLED`).
+  - `Order`, `OrderItem`, `OrderAddress`: Orders with detailed lifecycle states (`PENDING`, `CONFIRMED`, `PROCESSING`, `READY_FOR_PICKUP`, `DELIVERED`, `CANCELLED`).
   - `Payment`: Gateway references, payment status (`UNPAID`, `PAID`, `REFUNDED`), method & provider.
   - `Review` & `ReviewImage`: Product reviews with ratings and admin moderation status.
   - `Notification`: User notifications with read/unread tracking.
@@ -78,15 +84,29 @@ Backend khud authentication handle karta hai without any external 3rd-party auth
   - Email uniqueness check.
   - Phone sanitization (empty/whitespace converted to null to protect DB unique constraint).
   - Default role assigned: `CUSTOMER`.
+  - Sends email verification OTP immediately after registration.
   - Auto-logs action in Audit Service.
+- **Email Verification (`POST /api/v1/auth/verify-email`)**:
+  - 6-digit OTP verification with 5-attempt security protection.
+  - Sets `isEmailVerified: true` on the User record.
+- **Resend Verification (`POST /api/v1/auth/resend-verification`)**:
+  - Allows unverified users to request a new OTP.
 - **User Login (`POST /api/v1/auth/login`)**:
+  - Requires email to be verified (`isEmailVerified: true`).
   - Validates active user status (`isActive: true`).
   - Bcrypt password verification.
-  - Issues signed JWT token.
+  - Issues short-lived **JWT access token** (15 min) in response body.
+  - Sets long-lived **HttpOnly refresh token cookie** (7 days) via `cookie-parser`.
   - Updates `lastLoginAt` in the database.
+- **Token Refresh (`POST /api/v1/auth/refresh`)**:
+  - Reads refresh token from HttpOnly cookie or request body.
+  - Rotates refresh token: clears old cookie, issues new 7-day HttpOnly cookie.
+  - Returns new 15-minute access token.
+- **Logout (`POST /api/v1/auth/logout`)**:
+  - Clears the HttpOnly refresh token cookie.
 - **Forgot Password (`POST /api/v1/auth/forgot-password`)**:
   - Generates secure 6-digit numeric OTP.
-  - Stores code in DB with a 15-minute expiration window.
+  - Stores code in DB with a 15-minute expiration window (`VerificationType.PASSWORD_RESET`).
   - Sends email via `EmailService`.
 - **Reset Password (`POST /api/v1/auth/reset-password`)**:
   - Verifies OTP code and checks expiry.
@@ -102,6 +122,7 @@ Backend khud authentication handle karta hai without any external 3rd-party auth
 
 ### 3. Application Security & Infrastructure
 - **Global Helmet Protection**: Configured with strict headers (`frameguard: deny`, `noSniff: true`, `referrerPolicy: no-referrer`, and production HSTS).
+- **Cookie Parser (`cookie-parser`)**: Middleware registered to parse HttpOnly cookies for refresh token rotation.
 - **Global JWT Authentication Guard (`JwtAuthGuard`)**:
   - Applied globally via `APP_GUARD`.
   - Supports `@Public()` decorator for public endpoints.
@@ -115,18 +136,21 @@ Backend khud authentication handle karta hai without any external 3rd-party auth
 - **Global Exception Filter (`ErrorsExceptionFilter`)**:
   - Intercepts all exceptions across the entire application.
   - Formats standard JSON responses (`{ statusCode, message, error }`).
-  - Automatic Prisma error translation (e.g., `P2002` Unique Constraint to 409 Conflict, `P2025` Not Found to 404, `P2003` to 400).
+  - Automatic Prisma error translation (e.g., `P2002` Unique Constraint → 409 Conflict, `P2025` Not Found → 404, `P2003` → 400).
 - **Environment Validation (`src/config/env.validation.ts`)**:
   - Fail-fast environment loading using `class-validator`. Server will not start if required env variables are missing or invalid.
 
 ### 4. Email Notification Engine (`src/common/services/email.service.ts`)
 - Nodemailer SMTP transporter integration.
-- Responsive HTML template for password reset OTP delivery.
-- **Dev Mode Fallback**: Agar SMTP credentials configure na hon toh credentials crash karne ke bajaye console par code log karta hai:
+- Responsive HTML template for both email verification & password reset OTP delivery.
+- **Dev Mode Fallback**: Agar SMTP credentials configure na hon toh server crash karne ke bajaye console par code log karta hai:
   `[DEV MODE] Verification code for user@example.com: 123456`.
 
 ### 5. Health Monitoring Module (`src/modules/health`)
 - `GET /api/v1/health`: Server availability, uptime, aur ISO timestamp return karta hai.
+
+### 6. Database Seed (`prisma/seed.ts`)
+- `npm run seed` — Initial seed data populate karne ke liye script present hai.
 
 ---
 
@@ -135,12 +159,16 @@ Backend khud authentication handle karta hai without any external 3rd-party auth
 ### Authentication (`/api/v1/auth`)
 | Method | Endpoint | Access | Rate Limit | Description |
 |---|---|---|---|---|
-| `POST` | `/api/v1/auth/register` | Public | 5 req / min | New user account creation |
-| `POST` | `/api/v1/auth/login` | Public | 5 req / min | User login & JWT generation |
-| `POST` | `/api/v1/auth/forgot-password` | Public | 5 req / min | Requests 6-digit OTP via email |
+| `POST` | `/api/v1/auth/register` | Public | 5 req / min | New user account creation & sends email verification OTP |
+| `POST` | `/api/v1/auth/verify-email` | Public | 5 req / min | Verifies email via 6-digit OTP (5-attempt security protection) |
+| `POST` | `/api/v1/auth/resend-verification` | Public | 5 req / min | Resends verification OTP to email |
+| `POST` | `/api/v1/auth/login` | Public | 5 req / min | User login; returns JWT access token & sets HttpOnly refresh token cookie (requires verified email) |
+| `POST` | `/api/v1/auth/refresh` | Public | 5 req / min | Rotates refresh token (clears old cookie, sets new 7d cookie) & returns new 15m access token |
+| `POST` | `/api/v1/auth/logout` | Public | Default | Clears refresh token cookie and logs out |
+| `POST` | `/api/v1/auth/forgot-password` | Public | 5 req / min | Requests 6-digit OTP via email for password reset |
 | `POST` | `/api/v1/auth/reset-password` | Public | 5 req / min | Resets password using OTP code |
-| `POST` | `/api/v1/auth/change-password` | Authenticated | 5 req / min | Updates user password |
-| `GET` | `/api/v1/auth/me` | Authenticated | Default | Retrieves current user profile |
+| `POST` | `/api/v1/auth/change-password` | Authenticated | 5 req / min | Updates user password (requires current password) |
+| `GET` | `/api/v1/auth/me` | Authenticated | Default | Retrieves current authenticated user profile |
 
 ### Health Check (`/api/v1/health`)
 | Method | Endpoint | Access | Description |
@@ -148,7 +176,7 @@ Backend khud authentication handle karta hai without any external 3rd-party auth
 | `GET` | `/api/v1/health` | Public | Returns service health status and uptime |
 
 ### Scaffolded Commerce Modules (Ready for Business Logic)
-The controllers, routes, and DTOs for the following modules are fully wired into `AppModule`:
+The controllers, routes, and DTOs for the following modules are fully wired into `AppModule`. Business logic implementation is pending:
 
 | Module | Route Prefix | Endpoints Available |
 |---|---|---|
@@ -176,43 +204,44 @@ The controllers, routes, and DTOs for the following modules are fully wired into
 server/
 ├── prisma/
 │   ├── schema.prisma              # Database models, relations & enums
-│   └── migrations/                # PostgreSQL migration history
+│   ├── seed.ts                    # Database seeder script
+│   └── migrations/                # PostgreSQL migration history (2 applied)
 ├── src/
-│   ├── main.ts                    # Bootstrap: Helmet, ValidationPipe, Filters, Prefix
+│   ├── main.ts                    # Bootstrap: Helmet, CookieParser, ValidationPipe, Filters, Prefix
 │   ├── app.module.ts              # Root module wiring all feature modules
 │   ├── config/
-│   │   ├── env.validation.ts      # Class-validator environment rules
-│   │   └── rate-limit.config.ts   # Throttler configuration
+│   │   ├── env.validation.ts      # Class-validator environment rules (fail-fast)
+│   │   └── rate-limit.config.ts   # Throttler configuration constants
 │   ├── database/
 │   │   ├── database.service.ts    # PrismaClient lifecycle management
 │   │   └── database.module.ts     # Global DatabaseModule
 │   ├── common/
 │   │   ├── decorators/            # @CurrentUser(), @Public(), @Roles()
 │   │   ├── guards/                # JwtAuthGuard, CustomThrottlerGuard, CustomerOnlyGuard
-│   │   ├── filters/               # ErrorsExceptionFilter (unified error formats)
-│   │   ├── services/              # EmailService (Nodemailer)
+│   │   ├── filters/               # ErrorsExceptionFilter (unified error formats + Prisma error mapping)
+│   │   ├── services/              # EmailService (Nodemailer SMTP + Dev fallback)
 │   │   ├── pagination/            # Reusable pagination helpers
 │   │   └── enums/                 # Application-wide domain enums
 │   └── modules/
-│       ├── auth/                  # Fully implemented JWT & password reset flows
-│       │   ├── cron/              # VerificationCleanupCron
+│       ├── auth/                  # ✅ Fully implemented: JWT, refresh tokens, OTP, email verify
+│       │   ├── cron/              # VerificationCleanupCron (every 30 min)
 │       │   └── ...
-│       ├── user/                  # UserDbService + User controllers
-│       ├── products/              # Product catalog
-│       ├── category/              # Hierarchical categories
-│       ├── brands/                # Brand management
-│       ├── supplier/              # Supplier management
-│       ├── inventory/             # Stock levels & transaction ledger
-│       ├── batchs/                # FEFO batch tracking
-│       ├── cart/                  # Shopping cart
-│       ├── order/                 # Orders & order lifecycle
-│       ├── payment/               # Payment gateway & mock callbacks
-│       ├── review/                # Product reviews & ratings
-│       ├── notification/          # Notification system
-│       ├── dashboard/             # Admin reporting & CSV export
-│       ├── audit/                 # Audit trail logging
-│       ├── events/                # SSE event streams
-│       └── health/                # System health check
+│       ├── user/                  # 🟡 UserDbService (complete), UserService (scaffolded)
+│       ├── products/              # ⚙️ Scaffolded — controllers, DTOs, db.service
+│       ├── category/              # ⚙️ Scaffolded — hierarchical categories
+│       ├── brands/                # ⚙️ Scaffolded — brand management
+│       ├── supplier/              # ⚙️ Scaffolded — supplier management
+│       ├── inventory/             # ⚙️ Scaffolded — stock levels & transaction ledger
+│       ├── batchs/                # ⚙️ Scaffolded — FEFO batch tracking
+│       ├── cart/                  # ⚙️ Scaffolded — shopping cart
+│       ├── order/                 # ⚙️ Scaffolded — orders & order lifecycle state machine
+│       ├── payment/               # ⚙️ Scaffolded — payment gateway & mock callbacks
+│       ├── review/                # ⚙️ Scaffolded — product reviews & ratings
+│       ├── notification/          # ⚙️ Scaffolded — notification system
+│       ├── dashboard/             # ⚙️ Scaffolded — admin reporting & CSV export
+│       ├── audit/                 # 🟡 AuditService (active logger), AuditDbService (scaffolded)
+│       ├── events/                # ⚙️ Scaffolded — SSE event streams
+│       └── health/                # ✅ Health check endpoint
 └── final-year-project/            # Detailed reference guides & specifications
 ```
 
@@ -232,7 +261,11 @@ DATABASE_URL="postgresql://username:password@localhost:5432/thedailytokri?schema
 
 # JWT Secret & Expiration
 JWT_SECRET="your-super-secret-jwt-key"
-JWT_EXPIRES_IN="1d"
+JWT_EXPIRES_IN="15m"
+
+# Refresh Token Secret & Expiration
+REFRESH_TOKEN_SECRET="your-refresh-token-secret"
+REFRESH_TOKEN_EXPIRES_IN="7d"
 
 # SMTP Mail Configuration (Optional for Dev, required for production emails)
 SMTP_HOST="smtp.gmail.com"
@@ -256,16 +289,40 @@ npm install
 npx prisma migrate dev
 ```
 
-### 3. Start Development Server
+### 3. (Optional) Seed the Database
+```bash
+npm run seed
+```
+
+### 4. Start Development Server
 ```bash
 npm run start:dev
 ```
 Application starts at: `http://localhost:4000/api/v1`
 
-### 4. Build for Production
+### 5. Build for Production
 ```bash
 npm run build
+npm run start:prod
 ```
+
+---
+
+## 📦 Key Dependencies
+
+| Package | Version | Purpose |
+|---|---|---|
+| `@nestjs/common` | ^11.0.1 | NestJS core framework |
+| `@nestjs/jwt` | ^11.0.2 | JWT access token issuance & verification |
+| `@nestjs/schedule` | ^5.0.1 | Cron job scheduling |
+| `@nestjs/throttler` | ^6.7.1 | Rate limiting |
+| `@prisma/client` | ^7.10.1 | Database ORM client |
+| `@prisma/adapter-pg` | ^7.10.1 | Prisma PostgreSQL adapter |
+| `bcryptjs` | ^3.0.3 | Password hashing (cost factor 12) |
+| `cookie-parser` | ^1.4.7 | HttpOnly refresh token cookie parsing |
+| `helmet` | ^8.3.0 | HTTP security headers |
+| `nodemailer` | ^10.2.1 | SMTP email delivery |
+| `class-validator` | ^0.15.1 | DTO validation |
 
 ---
 
@@ -273,16 +330,35 @@ npm run build
 
 Project acceptance roadmap ke mutabiq aglay marhalay:
 
-1. **Category & Product Management**:
+1. **User Profile Management**:
+   - `UserService` ko `UserDbService` ke sath wire karna.
+   - Profile update, address management, aur user preferences implement karna.
+
+2. **Category & Product Management**:
    - `ProductsService` and `CategoryService` ko Prisma database queries ke sath jorna.
    - Public product browsing with filtering (`isActive = true`), pagination, search, aur category hierarchy traversal.
-2. **Inventory Stock Ledger**:
+
+3. **Brands & Suppliers CRUD**:
+   - `BrandDbService` aur `SupplierDbService` mein Prisma CRUD queries implement karna.
+
+4. **Inventory Stock Ledger**:
    - Products ke sath stock quantity sync karna aur low-stock thresholds handle karna.
    - Stock adjustments par `InventoryTransaction` ledger maintain karna.
-3. **Cart Operations**:
+
+5. **Cart Operations**:
    - Cart mein items add/update karte waqt inventory stock check validate karna.
-4. **Order State Machine & Checkout**:
+
+6. **Order State Machine & Checkout**:
    - Order creation par atomic transaction mein stock reserve / decrement karna.
+   - Order lifecycle transitions (`PENDING` → `CONFIRMED` → `PROCESSING` → `DELIVERED`).
    - Order cancellation par stock restore karna.
-5. **Payment Mock Gateway**:
+
+7. **Payment Mock Gateway**:
    - Order checkout ke baad mock payment webhook trigger karke order status `PAID` / `PROCESSING` par transition karna.
+
+8. **Reviews & Ratings**:
+   - Delivered orders ke liye product review submit karna.
+   - Admin moderation flow implement karna.
+
+9. **Audit Log DB Persistence**:
+   - `AuditDbService` mein Prisma write queries wire karna taake audit trail `AuditLog` table mein persist ho.
