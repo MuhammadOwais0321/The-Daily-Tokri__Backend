@@ -7,3 +7,12 @@ If you do not normally scan or read project files automatically, do not perform 
 If information from node_modules/ or package-lock.json is specifically needed for the task, inspect only the relevant parts. Never read or scan the entire node_modules/ directory or the entire package-lock.json file.
 These reading restrictions apply only to node_modules/ and package-lock.json. All other project files can be read, scanned, and modified normally when needed to complete the task.
 Do not add these restrictions to other files or directories.
+
+## Summary Rule
+
+After completing any coding task, always add a short summary at the end listing:
+
+- Files created (new files)
+- Files updated / edited (existing files with changes)
+
+Just list the file names (with a one-line note of what changed). Do not change your normal response behavior or stop showing the code you'd normally show — this summary is only an addition at the very end, nothing else.

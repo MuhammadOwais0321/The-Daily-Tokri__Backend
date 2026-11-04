@@ -1,42 +1,41 @@
 import {
   Controller,
   Get,
-  Post,
-  Body,
-  Patch,
   Param,
-  Delete,
+  ParseUUIDPipe,
+  Query,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
-import { CreateProductDto } from './dto/create-product.dto';
-import { UpdateProductDto } from './dto/update-product.dto';
+import { ListProductsQueryDto } from './dto';
+import { Public } from '../../common/decorators';
 
+@Public()
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
-  @Post()
-  create(@Body() createProductDto: CreateProductDto) {
-    return this.productsService.create(createProductDto);
+  /**
+   * Static route: Lookup product by slug
+   * Placed before :id to prevent route shadowing
+   */
+  @Get('slug/:slug')
+  findBySlug(@Param('slug') slug: string) {
+    return this.productsService.findBySlug(slug, true);
   }
 
+  /**
+   * Public catalog product listing (active and visible products only)
+   */
   @Get()
-  findAll() {
-    return this.productsService.findAll();
+  findAll(@Query() query: ListProductsQueryDto) {
+    return this.productsService.findAll(query, true);
   }
 
+  /**
+   * Public product detail by UUID (active and visible products only)
+   */
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.productsService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
-    return this.productsService.update(+id, updateProductDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.productsService.remove(+id);
+  findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
+    return this.productsService.findOne(id, true);
   }
 }

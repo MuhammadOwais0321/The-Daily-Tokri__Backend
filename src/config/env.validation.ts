@@ -39,8 +39,8 @@ export class EnvironmentVariables {
   PORT?: number;
 
   @IsString()
-  @IsOptional()
-  DATABASE_URL?: string;
+  @IsNotEmpty({ message: 'DATABASE_URL is required and cannot be empty' })
+  DATABASE_URL: string;
 
   @IsString()
   @IsOptional()
@@ -53,6 +53,26 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   ADMIN_NAME?: string;
+
+  @IsString()
+  @IsOptional()
+  AWS_REGION?: string;
+
+  @IsString()
+  @IsOptional()
+  AWS_ACCESS_KEY_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  AWS_SECRET_ACCESS_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  AWS_S3_BUCKET?: string;
+
+  @IsString()
+  @IsOptional()
+  AWS_S3_ENDPOINT?: string;
 }
 
 export function validateEnvironment(

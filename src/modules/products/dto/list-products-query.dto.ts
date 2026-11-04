@@ -1,5 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsEnum,
   IsIn,
@@ -63,8 +64,21 @@ export class ListProductsQueryDto extends PaginationDto {
   isActive?: boolean;
 
   @IsOptional()
-  @IsString()
-  allergens?: string;
+  @Transform(({ value }: { value: unknown }) => {
+    if (typeof value === 'string') {
+      return value
+        .split(',')
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean);
+    }
+    if (Array.isArray(value)) {
+      return value.map((s) => String(s).trim().toUpperCase()).filter(Boolean);
+    }
+    return value;
+  })
+  @IsArray()
+  @IsString({ each: true })
+  allergens?: string[];
 
   @IsOptional()
   @IsIn([

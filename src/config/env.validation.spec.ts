@@ -5,6 +5,7 @@ describe('validateEnvironment', () => {
     const config = {
       JWT_SECRET: 'super-secure-jwt-secret-key-123456',
       JWT_REFRESH_SECRET: 'super-secure-refresh-key-123456',
+      DATABASE_URL: 'postgresql://localhost:5432/mydb',
       PORT: '4000',
     };
 
