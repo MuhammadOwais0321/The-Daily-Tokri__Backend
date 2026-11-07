@@ -9,7 +9,7 @@ import {
   MaxLength,
   NotEquals,
 } from 'class-validator';
-import { AdjustmentReason } from '../../../common/enums';
+import { AdjustmentReason } from '@prisma/client';
 
 export class InventoryAdjustmentDto {
   @IsUUID('4')

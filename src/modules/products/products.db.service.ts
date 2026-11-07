@@ -176,8 +176,8 @@ export class ProductsDbService {
   }
 
   async findMany(query: ListProductsQueryDto, isPublic: boolean = false) {
-    const page = Math.max(1, Number(query.page) || 1);
-    const limit = Math.min(100, Math.max(1, Number(query.limit) || 10));
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
     const skip = (page - 1) * limit;
 
     const where: Prisma.ProductWhereInput = {};

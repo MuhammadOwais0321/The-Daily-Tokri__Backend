@@ -14,6 +14,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { ProductsService } from './products.service';
 import {
   CreateProductDto,
@@ -25,6 +26,7 @@ import {
 import { Roles, CurrentUser } from '../../common/decorators';
 import { UserRole } from '../../common/enums';
 import { ImageValidationPipe } from '../../common/pipes';
+import { RATE_LIMITS } from '../../config/rate-limit.config';
 import 'multer';
 
 @Roles(UserRole.ADMIN)
@@ -51,6 +53,7 @@ export class AdminProductsController {
   /**
    * Admin: Create product
    */
+  @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Post()
   @HttpCode(HttpStatus.CREATED)
   create(
@@ -63,6 +66,7 @@ export class AdminProductsController {
   /**
    * Admin: Update product details
    */
+  @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Patch(':id')
   update(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -75,6 +79,7 @@ export class AdminProductsController {
   /**
    * Admin: Delete product
    */
+  @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(
@@ -89,6 +94,7 @@ export class AdminProductsController {
   /**
    * Admin: Upload product images (max 3 per product)
    */
+  @Throttle(RATE_LIMITS.ADMIN_IMAGE_UPLOAD)
   @Post(':id/images')
   @UseInterceptors(FilesInterceptor('images', 3))
   uploadImages(
@@ -97,13 +103,15 @@ export class AdminProductsController {
     @Query('isPrimaryIndex') isPrimaryIndex?: string,
     @CurrentUser('id') adminId?: string,
   ) {
-    const primaryIdx = isPrimaryIndex !== undefined ? Number(isPrimaryIndex) : 0;
+    const primaryIdx =
+      isPrimaryIndex !== undefined ? Number(isPrimaryIndex) : 0;
     return this.productsService.uploadImages(id, files, primaryIdx, adminId);
   }
 
   /**
    * Admin: Update image metadata (altText, sortOrder, isPrimary)
    */
+  @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Patch(':id/images/:imageId')
   updateImage(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -117,6 +125,7 @@ export class AdminProductsController {
   /**
    * Admin: Delete product image
    */
+  @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Delete(':id/images/:imageId')
   deleteImage(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -139,6 +148,7 @@ export class AdminProductsController {
   /**
    * Admin: Declare allergen for product
    */
+  @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Post(':id/allergens')
   @HttpCode(HttpStatus.CREATED)
   addAllergen(
@@ -152,6 +162,7 @@ export class AdminProductsController {
   /**
    * Admin: Remove allergen declaration
    */
+  @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Delete(':id/allergens/:allergenId')
   @HttpCode(HttpStatus.NO_CONTENT)
   deleteAllergen(

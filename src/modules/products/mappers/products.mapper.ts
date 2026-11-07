@@ -1,4 +1,4 @@
-import { Prisma, ProductImage, ProductAllergen } from '@prisma/client';
+import { ProductImage, ProductAllergen } from '@prisma/client';
 import {
   IProductImage,
   IProductAllergen,
@@ -8,18 +8,9 @@ import {
   IAdminProductSummary,
   ProductWithRelations,
 } from '../types';
+import { toDecimalString } from '../../../common/utils';
 
-export function toDecimalString(
-  value: Prisma.Decimal | number | string | null | undefined,
-): string {
-  if (value === null || value === undefined) {
-    return '0.00';
-  }
-  if (value instanceof Prisma.Decimal) {
-    return value.toFixed(2);
-  }
-  return new Prisma.Decimal(value).toFixed(2);
-}
+export { toDecimalString };
 
 export function toProductImage(img: ProductImage): IProductImage {
   return {

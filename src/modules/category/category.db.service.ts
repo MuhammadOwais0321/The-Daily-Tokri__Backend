@@ -139,8 +139,8 @@ export class CategoryDbService {
     tx?: Prisma.TransactionClient,
   ): Promise<ICategoryListResponse> {
     const client = this.getClient(tx);
-    const page = Math.max(1, filters.page ?? 1);
-    const limit = Math.min(100, Math.max(1, filters.limit ?? 10));
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 10;
     const skip = (page - 1) * limit;
 
     const where: Prisma.CategoryWhereInput = {};

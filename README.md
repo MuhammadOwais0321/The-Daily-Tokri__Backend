@@ -28,7 +28,7 @@
 
 Is document mein project ki **abhi tak ki mukammal progress (Current Progress Status)**, implemented features, database schema, active endpoints, aur next steps ka tafseeli record mojood hai.
 
-> **Last Updated:** November 5, 2026
+> **Last Updated:** November 7, 2026
 
 ---
 
@@ -43,16 +43,17 @@ Is document mein project ki **abhi tak ki mukammal progress (Current Progress St
 | **Email Service (Nodemailer)** | ✅ Completed | 100% | SMTP configuration, HTML OTP template, Dev mode auto-fallback |
 | **Cloud Storage Engine (S3 / R2)** | ✅ Completed | 100% | S3Service (upload, best-effort delete), ImageValidationPipe (magic bytes verification) |
 | **Category Hierarchy Module** | ✅ Completed | 100% | 3-level tree (depth 0..2), Materialized path calculation & recursive update (`::integer` offset), S3 image upload/delete, Re-parenting validation |
-| **Product Catalog Module** | ✅ Completed | 100% | Full CRUD, SKU sequence sequence generator, Leaf+Active category validation, S3 multi-image uploads (max 3) with atomic transactions, UK 14 Allergens, Reference deletion guard |
+| **Product Catalog Module** | ✅ Completed | 100% | Full CRUD, SKU sequence generator, Leaf+Active category validation, S3 multi-image uploads (max 3) with atomic transactions, UK 14 Allergens, Reference deletion guard |
+| **Inventory & FEFO Batches** | ✅ Completed | 100% | 1:1 product mapping, batch code generation, stock adjustments with `FOR UPDATE` locks, transaction ledger, status calculation (IN/LOW/OUT), batch expiry sweep cron (every 5m), stock alert notification dispatch |
 | **Audit Logging Engine** | ✅ Completed | 100% | Fire-and-forget `AuditService` logger, persistent DB writes (`AuditDbService`), paginated audit query API |
 | **Health Check API** | ✅ Completed | 100% | `/api/v1/health` with server uptime & timestamps |
-| **Background Cron Tasks** | ✅ Completed | 100% | Automated cleanup cron running every 30 minutes for expired verification codes |
+| **Background Cron Tasks** | ✅ Completed | 100% | Automated cleanup cron (every 30m for verification codes) & Batch expiry sweep cron (every 5m) |
 | **User & Address Management** | 🟡 Core Ready | 60% | `UserDbService` fully implemented for Auth; user address book & profile controller in progress |
 | **Brands & Suppliers** | ⚙️ Scaffolded | 40% | DTOs, controllers mapped; Prisma models ready; DB service pending |
-| **Inventory & FEFO Batches** | ⚙️ Scaffolded | 40% | Prisma schema, DTOs & controllers ready; Stock ledger & FEFO allocation pending |
+| **Notifications & Stock Alerts** | 🟡 Core Active | 60% | Admin stock alert notifications (LOW_STOCK / OUT_OF_STOCK) with deduplicated upserts; inbox controller scaffolded |
 | **Cart & Order Lifecycle** | ⚙️ Scaffolded | 40% | DTOs, state machine enums ready; Controllers registered; Transactional checkout pending |
 | **Payment Gateway (Mock)** | ⚙️ Scaffolded | 40% | Initiation & webhook endpoints scaffolded; Mock gateway pending |
-| **Reviews, Notifications & Events** | ⚙️ Scaffolded | 40% | DTOs, controllers and SSE route structures in place |
+| **Reviews & Ratings** | ⚙️ Scaffolded | 40% | DTOs, controllers and review moderation route structures in place |
 | **Admin Dashboard & Analytics** | ⚙️ Scaffolded | 40% | Query DTOs, metrics & export endpoints defined |
 | **Database Seed** | ⚙️ Present | —% | `prisma/seed.ts` exists; seed script configured in `package.json` |
 
@@ -146,7 +147,39 @@ Enterprise-grade product catalog engine:
 
 ---
 
-### 5. Audit Logging Engine (`src/modules/audit`)
+### 5. Inventory & FEFO Batches Engine (`src/modules/inventory`)
+Enterprise stock tracking, FEFO batch lifecycle, aur transactional ledger engine:
+- **Product-to-Inventory Mapping**:
+  - Exactly 1:1 relation between `Product` and `Inventory` (`@@unique([productId])`).
+  - Available products discovery endpoint (`GET /admin/inventory/available-products`) to list products ready for inventory creation.
+- **Batch Code Generation & FEFO Lifecycle**:
+  - Unique batch code generation pattern: `BATCH-YYYYMMDD-XXXXXXXXXXXX`.
+  - Batch-tracked products ke liye future expiry date validation; non-batch products par batch payload reject.
+  - Batches `expiryDate ASC` order mein manage hote hain (FEFO principle).
+- **Transactional Stock Adjustments (`POST /admin/inventory/adjustments`)**:
+  - `runInTransaction` ke andar pessimistic row locks (`SELECT ... FOR UPDATE`) se race-condition safe updates.
+  - Supports `ADJUSTMENT_INCREASE` aur `ADJUSTMENT_DECREASE` with reasons (`DAMAGE`, `RECOUNT`, `RETURN_TO_SUPPLIER`, `MANUAL_CORRECTION`, `RESTOCK`).
+  - Automatic double safety against negative stock (application logic + PostgreSQL CHECK constraint).
+- **Transaction Ledger (`InventoryTransaction`)**:
+  - Har movement ka granular audit trail (`RECEIVED`, `ADJUSTMENT_INCREASE`, `ADJUSTMENT_DECREASE`).
+  - Queryable global ledger (`GET /admin/inventory/transactions`) aur per-inventory ledger (`GET /admin/inventory/:id/transactions`).
+- **Dynamic Stock Status Auto-Refresh**:
+  - Formula: active, non-expired batches ka aggregate (batch-tracked ke liye) ya `qtyOnHand` (non-batch ke liye).
+  - Transitions: `> lowStockThreshold` → `IN_STOCK`, `<= lowStockThreshold` → `LOW_STOCK`, `<= 0` → `OUT_OF_STOCK`.
+- **Automated Batch Expiry Sweep Cron (`BatchExpiryCron`)**:
+  - Scheduled to run every 5 minutes (`@Cron(CronExpression.EVERY_5_MINUTES)`).
+  - Past-date active batches ko atomically `EXPIRED` mark karta hai.
+  - Stock deduct karke `ADJUSTMENT_DECREASE` ledger entry create karta hai with `performedBy: AuditActorType.SYSTEM_TRIGGER`.
+  - Fire-and-forget audit log dispatch karta hai (`actorType: AuditActorType.SYSTEM_TRIGGER`).
+  - Status change par admins ko notification alerts bhejta hai.
+- **Stock Alert Notifications**:
+  - `NotificationService.dispatchStockNotification` active store admins ko `LOW_STOCK` aur `OUT_OF_STOCK` alert notifications bhejta hai with deduplicated composite upserts (`userId`, `referenceId`, `referenceEvent`).
+- **Module Architecture Consolidation**:
+  - Purane scaffolded `batchs` module ki tamam functionality ko cleanly `inventory` module ke andar consolidate kar diya gaya hai.
+
+---
+
+### 6. Audit Logging Engine (`src/modules/audit`)
 - **Fire-and-Forget Architecture**: `AuditService.log()` main user requests ko block ya fail kiye baghair background mein database persistence execute karta hai.
 - **Database Storage**: Tamam actions `audit_logs` table mein JSON structured details ke sath record hote hain.
 - **Admin Audit API (`GET /api/v1/audit`)**:
@@ -157,14 +190,14 @@ Enterprise-grade product catalog engine:
 
 ---
 
-### 6. Cloud Storage & Media Validation (`src/common/services/s3.service.ts`)
+### 7. Cloud Storage & Media Validation (`src/common/services/s3.service.ts`)
 - Cloudflare R2 / AWS S3 S3-compatible object storage support.
 - **`ImageValidationPipe`**: Magic bytes (file signature) check jo spoofed extensions ko block karta hai (sirf JPEG, PNG, WEBP, ICO allow).
 - Max 5 MB image size limit.
 
 ---
 
-### 7. Application Security & Infrastructure
+### 8. Application Security & Infrastructure
 - **Global Helmet Protection**: Strict security headers (`frameguard: deny`, `noSniff: true`, `referrerPolicy: no-referrer`, production HSTS).
 - **Cookie Parser**: Middleware for HttpOnly refresh token extraction.
 - **Global JWT Auth Guard (`JwtAuthGuard`)**: Default deny architecture with `@Public()` decorator opt-out.
@@ -234,12 +267,24 @@ Enterprise-grade product catalog engine:
 | `POST` | `/api/v1/admin/products/:id/allergens` | Admin | Declare allergen (`CONTAINS`, `MAY_CONTAIN`, `FREE_FROM`) |
 | `DELETE`| `/api/v1/admin/products/:productId/allergens/:allergenId` | Admin | Remove declared allergen |
 
-### 6. Audit Logs (`/api/v1/audit`)
+### 6. Inventory & Batches — Admin Management (`/api/v1/admin/inventory`)
+| Method | Endpoint | Access | Rate Limit | Description |
+|---|---|---|---|---|
+| `GET` | `/api/v1/admin/inventory/available-products` | Admin | Default | List active products without an inventory record |
+| `GET` | `/api/v1/admin/inventory/transactions` | Admin | Default | Query global inventory transaction ledger (`q`, `productId`, `inventoryId`, `type`, `dateFrom`, `dateTo`) |
+| `GET` | `/api/v1/admin/inventory` | Admin | Default | Paginated inventory list (`search`, `stockStatus`, `page`, `limit`) |
+| `GET` | `/api/v1/admin/inventory/:id` | Admin | Default | Get inventory detail by UUID (includes batch & product info) |
+| `GET` | `/api/v1/admin/inventory/:id/transactions` | Admin | Default | Paginated transactions for a specific inventory record |
+| `POST` | `/api/v1/admin/inventory` | Admin | 60 req / min | Create inventory record (+ initial batch if batch-tracked) |
+| `POST` | `/api/v1/admin/inventory/adjustments` | Admin | 60 req / min | Adjust stock quantity with reason and note (`FOR UPDATE` row lock) |
+| `PATCH` | `/api/v1/admin/inventory/:id` | Admin | 60 req / min | Update `lowStockThreshold` or batch expiry date |
+
+### 7. Audit Logs (`/api/v1/audit`)
 | Method | Endpoint | Access | Description |
 |---|---|---|---|
 | `GET` | `/api/v1/audit` | Admin | List system audit logs (`entityType`, `actorType`, `dateFrom`, `dateTo`, pagination) |
 
-### 7. Health Check (`/api/v1/health`)
+### 8. Health Check (`/api/v1/health`)
 | Method | Endpoint | Access | Description |
 |---|---|---|---|
 | `GET` | `/api/v1/health` | Public | Returns server health status, uptime, and timestamp |
@@ -269,8 +314,9 @@ server/
 │   │   ├── filters/               # ErrorsExceptionFilter (unified error formats + Prisma error mapping)
 │   │   ├── pipes/                 # ImageValidationPipe (magic bytes / file-type checks)
 │   │   ├── services/              # EmailService (SMTP), S3Service (Cloudflare R2 / S3 storage)
+│   │   ├── money/                 # Money utilities (toDecimalString)
 │   │   ├── pagination/            # Reusable pagination helpers (buildMeta, PaginationDto)
-│   │   ├── utils/                 # slugify, text normalization utilities
+│   │   ├── utils/                 # decimal, slugify, text normalization utilities
 │   │   └── enums/                 # Application-wide domain enums
 │   └── modules/
 │       ├── auth/                  # ✅ Auth engine: JWT, refresh tokens, OTP, email verify, cleanup cron
@@ -282,18 +328,21 @@ server/
 │       │   ├── mappers/           # Product response & summary mappers
 │       │   ├── types/             # Product payload & response contracts
 │       │   └── ...
+│       ├── inventory/             # ✅ Full Stock Control, FEFO batches, ledger & 5-min expiry cron
+│       │   ├── cron/              # BatchExpiryCron (@Cron every 5 minutes)
+│       │   ├── mappers/           # Inventory & transaction response mappers
+│       │   ├── types/             # Inventory payload & response contracts
+│       │   └── ...
 │       ├── audit/                 # ✅ Audit logger & DB query persistence
 │       ├── health/                # ✅ Health check monitoring endpoint
+│       ├── notification/          # 🟡 Admin stock alert notifications (LOW/OUT of stock); inbox scaffolded
 │       ├── user/                  # 🟡 UserDbService (complete), Address & profile management in progress
 │       ├── brands/                # ⚙️ Scaffolded — brand management
 │       ├── supplier/              # ⚙️ Scaffolded — supplier management
-│       ├── inventory/             # ⚙️ Scaffolded — stock levels & transaction ledger
-│       ├── batchs/                # ⚙️ Scaffolded — FEFO batch tracking
 │       ├── cart/                  # ⚙️ Scaffolded — shopping cart
 │       ├── order/                 # ⚙️ Scaffolded — order state machine
 │       ├── payment/               # ⚙️ Scaffolded — mock payment gateway & callbacks
 │       ├── review/                # ⚙️ Scaffolded — product reviews & moderation
-│       ├── notification/          # ⚙️ Scaffolded — notification inbox
 │       ├── dashboard/             # ⚙️ Scaffolded — admin analytics & CSV export
 │       └── events/                # ⚙️ Scaffolded — SSE event streams
 └── final-year-project/            # Detailed reference guides & specifications (docs)
@@ -374,37 +423,31 @@ npm run start:prod
 
 Project acceptance roadmap ke mutabiq aglay marhalay:
 
-1. **Inventory & FEFO Batch Engine**:
-   - Products ke sath stock quantity sync karna aur low-stock thresholds (`IN_STOCK`, `LOW_STOCK`, `OUT_OF_STOCK`) maintain karna.
-   - Perishable grocery items ke liye First-Expiry-First-Out (FEFO) batch allocation.
-   - Stock adjustments par `InventoryTransaction` ledger (RECEIVED, ADJUSTMENT, CONSUMED, RELEASED).
-   - Batch expiry background cron job.
-
-2. **User Address Book & Profile Management**:
+1. **User Address Book & Profile Management**:
    - User profile edit aur address book CRUD operations.
    - Ek user ka single default address constraint transaction mein enforce karna.
    - GDPR-style account anonymization (`[DELETED]` email prefix, cascade data cleanup).
 
-3. **Brands & Suppliers CRUD**:
+2. **Brands & Suppliers CRUD**:
    - `BrandDbService` aur `SupplierDbService` mein Prisma CRUD queries aur logo upload wire karna.
 
-4. **Cart Operations**:
+3. **Cart Operations**:
    - Customer-only guard (`CustomerOnlyGuard`) enforce karna.
    - Add/update karte waqt inventory stock check validate karna.
    - Real-time cart calculations (totals, item counts).
 
-5. **Order State Machine & Checkout**:
+4. **Order State Machine & Checkout**:
    - Order creation par deterministic sorted row locks (`SELECT ... FOR UPDATE`) se overselling aur deadlock prevent karna.
    - Atomic order transaction: stock deduction, CONSUMED ledger entry, aur cart cleanup.
    - Order lifecycle transitions (`PENDING` → `CONFIRMED` → `PROCESSING` → `DELIVERED`).
    - Order cancellation par stock restore karna (`RELEASED`).
    - 5-minute unpaid payment timeout auto-cancellation cron.
 
-6. **Payment Gateway (Mock)**:
+5. **Payment Gateway (Mock)**:
    - Order checkout intent create karna.
    - Mock payment webhook handler (HMAC signature verification).
    - Late payment auto-refund flow aur refund retry cron.
 
-7. **Reviews & Ratings**:
+6. **Reviews & Ratings**:
    - Sirf delivered orders ke verified purchases par review submit karne ki ijazat.
    - Admin moderation flow (`APPROVED`, `REJECTED`).

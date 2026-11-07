@@ -20,7 +20,6 @@ import { BrandModule } from './modules/brands/brand.module';
 import { SupplierModule } from './modules/supplier/supplier.module';
 import { ProductsModule } from './modules/products/products.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
-import { BatchModule } from './modules/batchs/batch.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { EventsModule } from './modules/events/events.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
@@ -47,7 +46,6 @@ import { HealthModule } from './modules/health/health.module';
     SupplierModule,
     ProductsModule,
     InventoryModule,
-    BatchModule,
     NotificationModule,
     EventsModule,
     DashboardModule,

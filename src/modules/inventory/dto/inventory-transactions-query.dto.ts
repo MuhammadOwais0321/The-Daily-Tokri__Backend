@@ -6,7 +6,7 @@ import {
   IsUUID,
 } from 'class-validator';
 import { PaginationDto } from '../../../common/pagination';
-import { TransactionType } from '../../../common/enums';
+import { TransactionType } from '@prisma/client';
 
 export class InventoryTransactionsQueryDto extends PaginationDto {
   @IsOptional()

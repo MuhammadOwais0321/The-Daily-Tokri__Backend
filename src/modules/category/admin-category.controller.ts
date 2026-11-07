@@ -14,11 +14,13 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { CategoryService } from './category.service';
 import { CreateCategoryDto, UpdateCategoryDto, CategoryQueryDto } from './dto';
 import { Roles, CurrentUser } from '../../common/decorators';
 import { UserRole } from '../../common/enums';
 import { ImageValidationPipe } from '../../common/pipes';
+import { RATE_LIMITS } from '../../config/rate-limit.config';
 import 'multer';
 
 @Roles(UserRole.ADMIN)
@@ -58,6 +60,7 @@ export class AdminCategoryController {
   /**
    * Admin: Create category
    */
+  @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Post()
   @HttpCode(HttpStatus.CREATED)
   create(
@@ -70,6 +73,7 @@ export class AdminCategoryController {
   /**
    * Admin: Update category & re-parenting
    */
+  @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Patch(':id')
   update(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -82,6 +86,7 @@ export class AdminCategoryController {
   /**
    * Admin: Delete category
    */
+  @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(
@@ -94,6 +99,7 @@ export class AdminCategoryController {
   /**
    * Admin: Upload category image to S3 (Pattern 2)
    */
+  @Throttle(RATE_LIMITS.ADMIN_IMAGE_UPLOAD)
   @Post(':id/image')
   @UseInterceptors(FileInterceptor('image'))
   uploadImage(
@@ -107,6 +113,7 @@ export class AdminCategoryController {
   /**
    * Admin: Delete category image from S3
    */
+  @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Delete(':id/image')
   deleteImage(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
