@@ -48,7 +48,8 @@ Is document mein project ki **abhi tak ki mukammal progress (Current Progress St
 | **Audit Logging Engine** | ✅ Completed | 100% | Fire-and-forget `AuditService` logger, persistent DB writes (`AuditDbService`), paginated audit query API |
 | **Health Check API** | ✅ Completed | 100% | `/api/v1/health` with server uptime & timestamps |
 | **Background Cron Tasks** | ✅ Completed | 100% | Automated cleanup cron (every 30m for verification codes) & Batch expiry sweep cron (every 5m) |
-| **User & Address Management** | 🟡 Core Ready | 60% | `UserDbService` fully implemented for Auth; user address book & profile controller in progress |
+| **Address Management Module** | ✅ Completed | 100% | Full CRUD (`/addresses` & `/user/address`), atomic default address switch in `$transaction`, newest promotion on delete, IDOR protection (404) |
+| **User & Profile Management** | 🟡 Core Ready | 60% | `UserDbService` fully implemented for Auth; user profile & status controllers mapped |
 | **Brands & Suppliers** | ⚙️ Scaffolded | 40% | DTOs, controllers mapped; Prisma models ready; DB service pending |
 | **Notifications & Stock Alerts** | 🟡 Core Active | 60% | Admin stock alert notifications (LOW_STOCK / OUT_OF_STOCK) with deduplicated upserts; inbox controller scaffolded |
 | **Cart & Order Lifecycle** | ⚙️ Scaffolded | 40% | DTOs, state machine enums ready; Controllers registered; Transactional checkout pending |
@@ -179,7 +180,25 @@ Enterprise stock tracking, FEFO batch lifecycle, aur transactional ledger engine
 
 ---
 
-### 6. Audit Logging Engine (`src/modules/audit`)
+### 6. Address Management Module (`src/modules/addresses`)
+Enterprise address book with strict ownership scoping, default address guarantee, aur atomic transitions:
+- **Ownership Scoping (IDOR Protection)**:
+  - Har query `{ id, userId }` composite key par chalti hai. Agar doosre user ka address ID bheja jaye to backend `404 Not Found` throw karta hai (taake resource existence leak na ho).
+- **Single Default Address Invariant**:
+  - Database level par partial unique index `addresses_user_default_unique` enforce karta hai ke ek user ka sirf 1 default address ho.
+  - Application level par transaction (`$transaction`) mein pehle user ke purane default addresses unset hote hain, phir naya address default banta hai.
+- **First Address & Default Auto-Detection**:
+  - User ka pehla address create hone par automatically `isDefault: true` set hota hai.
+- **Auto-Promotion on Default Deletion**:
+  - Default address delete hone par user ka sab se naya remaining address (`orderBy: { createdAt: 'desc' }`) automatically default ban jata hai (single atomic transaction mein).
+- **Idempotent Set-Default**:
+  - Agar address pehle se default ho to `PATCH /:id/default` bina duplicate conflict ke safe response return karta hai.
+- **Dual Route Aliasing**:
+  - Endpoints dono conventions par available hain: `/api/v1/addresses` aur `/api/v1/user/address`.
+
+---
+
+### 7. Audit Logging Engine (`src/modules/audit`)
 - **Fire-and-Forget Architecture**: `AuditService.log()` main user requests ko block ya fail kiye baghair background mein database persistence execute karta hai.
 - **Database Storage**: Tamam actions `audit_logs` table mein JSON structured details ke sath record hote hain.
 - **Admin Audit API (`GET /api/v1/audit`)**:
@@ -190,14 +209,14 @@ Enterprise stock tracking, FEFO batch lifecycle, aur transactional ledger engine
 
 ---
 
-### 7. Cloud Storage & Media Validation (`src/common/services/s3.service.ts`)
+### 8. Cloud Storage & Media Validation (`src/common/services/s3.service.ts`)
 - Cloudflare R2 / AWS S3 S3-compatible object storage support.
 - **`ImageValidationPipe`**: Magic bytes (file signature) check jo spoofed extensions ko block karta hai (sirf JPEG, PNG, WEBP, ICO allow).
 - Max 5 MB image size limit.
 
 ---
 
-### 8. Application Security & Infrastructure
+### 9. Application Security & Infrastructure
 - **Global Helmet Protection**: Strict security headers (`frameguard: deny`, `noSniff: true`, `referrerPolicy: no-referrer`, production HSTS).
 - **Cookie Parser**: Middleware for HttpOnly refresh token extraction.
 - **Global JWT Auth Guard (`JwtAuthGuard`)**: Default deny architecture with `@Public()` decorator opt-out.
@@ -279,12 +298,23 @@ Enterprise stock tracking, FEFO batch lifecycle, aur transactional ledger engine
 | `POST` | `/api/v1/admin/inventory/adjustments` | Admin | 60 req / min | Adjust stock quantity with reason and note (`FOR UPDATE` row lock) |
 | `PATCH` | `/api/v1/admin/inventory/:id` | Admin | 60 req / min | Update `lowStockThreshold` or batch expiry date |
 
-### 7. Audit Logs (`/api/v1/audit`)
+### 7. Address Management (`/api/v1/addresses` & `/api/v1/user/address`)
+| Method | Endpoint | Access | Rate Limit | Description |
+|---|---|---|---|---|
+| `GET` | `/api/v1/addresses` | Authenticated | 80 req / min | List all saved addresses for current user (default address first) |
+| `GET` | `/api/v1/addresses/:id` | Authenticated | 80 req / min | Get address detail by UUID (scoped to user; 404 if not found) |
+| `POST` | `/api/v1/addresses` | Authenticated | 80 req / min | Add new address (auto-sets default if first address or `isDefault: true`) |
+| `PATCH` | `/api/v1/addresses/:id` | Authenticated | 80 req / min | Update address fields (unsets other defaults in `$transaction` if `isDefault: true`) |
+| `PUT` | `/api/v1/addresses/:id` | Authenticated | 80 req / min | Update address fields (PUT alias) |
+| `DELETE` | `/api/v1/addresses/:id` | Authenticated | 80 req / min | Delete address (auto-promotes newest remaining address if default was deleted) |
+| `PATCH` | `/api/v1/addresses/:id/default` | Authenticated | 80 req / min | Mark address as default (unsets previous default in transaction; idempotent) |
+
+### 8. Audit Logs (`/api/v1/audit`)
 | Method | Endpoint | Access | Description |
 |---|---|---|---|
 | `GET` | `/api/v1/audit` | Admin | List system audit logs (`entityType`, `actorType`, `dateFrom`, `dateTo`, pagination) |
 
-### 8. Health Check (`/api/v1/health`)
+### 9. Health Check (`/api/v1/health`)
 | Method | Endpoint | Access | Description |
 |---|---|---|---|
 | `GET` | `/api/v1/health` | Public | Returns server health status, uptime, and timestamp |

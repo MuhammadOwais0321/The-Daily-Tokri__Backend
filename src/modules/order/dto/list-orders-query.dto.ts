@@ -5,12 +5,8 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
+import { DeliveryType, OrderStatus, PaymentStatus } from '@prisma/client';
 import { PaginationDto } from '../../../common/pagination';
-import {
-  DeliveryType,
-  OrderStatus,
-  PaymentStatus,
-} from '../../../common/enums';
 
 export class ListOrdersQueryDto extends PaginationDto {
   @IsOptional()
@@ -38,7 +34,7 @@ export class ListOrdersQueryDto extends PaginationDto {
   dateTo?: string;
 
   @IsOptional()
-  @IsString()
+  @IsIn(['createdAt', 'total', 'status', 'date'])
   sortBy?: string;
 
   @IsOptional()

@@ -13,7 +13,9 @@ describe('AuditService', () => {
           provide: AuditDbService,
           useValue: {
             create: jest.fn().mockResolvedValue({}),
-            findMany: jest.fn().mockResolvedValue({ data: [], total: 0, page: 1, limit: 20 }),
+            findMany: jest
+              .fn()
+              .mockResolvedValue({ data: [], total: 0, page: 1, limit: 20 }),
           },
         },
       ],

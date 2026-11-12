@@ -73,6 +73,10 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   AWS_S3_ENDPOINT?: string;
+
+  @IsString()
+  @IsOptional()
+  MOCK_PAYMENT_WEBHOOK_SECRET?: string;
 }
 
 export function validateEnvironment(

@@ -11,6 +11,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DatabaseModule } from './database';
 import { CustomThrottlerGuard, JwtAuthGuard } from './common/guards';
 import { UserModule } from './modules/user/user.module';
+import { AddressModule } from './modules/addresses/address.module';
 import { CartModule } from './modules/cart/cart.module';
 import { OrderModule } from './modules/order/order.module';
 import { PaymentModule } from './modules/payment/payment.module';
@@ -36,6 +37,7 @@ import { HealthModule } from './modules/health/health.module';
     ThrottlerModule.forRoot(throttlerConfig),
     DatabaseModule,
     AuthModule,
+    AddressModule,
     UserModule,
     CartModule,
     OrderModule,

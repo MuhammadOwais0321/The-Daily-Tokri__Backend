@@ -53,22 +53,24 @@ export class ProductsService {
     private readonly s3Service: S3Service,
   ) {}
 
-  async create(dto: CreateProductDto, adminId?: string): Promise<IAdminProduct> {
+  async create(
+    dto: CreateProductDto,
+    adminId?: string,
+  ): Promise<IAdminProduct> {
     const trimmedName = dto.name.trim();
 
-    // 1. Min/Max order quantity constraint
+    // Validate min/max order quantity
     if (dto.maximumOrderQuantity < dto.minimumOrderQuantity) {
       throw new BadRequestException(
         'Maximum order quantity must be greater than or equal to minimum order quantity',
       );
     }
 
-    // 2. Leaf and Active category check (Docs rule)
+    // Ensure leaf and active category
     const category = await this.categoryService.ensureLeafAndActive(
       dto.categoryId,
     );
 
-    // 3. Name uniqueness per category
     const existingName = await this.productDb.findByNameAndCategory(
       trimmedName,
       dto.categoryId,
@@ -79,7 +81,6 @@ export class ProductsService {
       );
     }
 
-    // 4. Barcode uniqueness if provided
     if (dto.barcode && dto.barcode.trim()) {
       const existingBarcode = await this.productDb.findByBarcode(
         dto.barcode.trim(),
@@ -91,7 +92,7 @@ export class ProductsService {
       }
     }
 
-    // 5. Generate Slug: <categorySlug>-<nameSlug>[-n]
+    // Generate unique product slug
     const baseSlug = `${category.slug}-${slugify(trimmedName)}`;
     let slug = baseSlug;
     let counter = 1;
@@ -100,10 +101,9 @@ export class ProductsService {
       slug = `${baseSlug}-${counter}`;
     }
 
-    // 6. Generate SKU via sequence: <CAT3>-<000001>
+    // Atomic SKU generation via sequence
     const sku = await this.productDb.getNextSku(category.slug || category.name);
 
-    // 7. Persist product in DB
     const created = await this.productDb.create({
       name: trimmedName,
       slug,
@@ -126,9 +126,11 @@ export class ProductsService {
         : undefined,
     });
 
-    this.logger.log(`Product created: ${created.name} (${created.id}) with SKU ${created.sku}`);
+    this.logger.log(
+      `Product created: ${created.name} (${created.id}) with SKU ${created.sku}`,
+    );
 
-    // 8. Fire-and-forget audit log
+    // Fire-and-forget audit log
     this.auditService
       .log({
         entityType: 'PRODUCT',
@@ -233,7 +235,7 @@ export class ProductsService {
       throw new NotFoundException('Product not found');
     }
 
-    // 1. Min/Max quantity check
+    // Validate min/max order quantity
     const minQty = dto.minimumOrderQuantity ?? product.minimumOrderQuantity;
     const maxQty = dto.maximumOrderQuantity ?? product.maximumOrderQuantity;
     if (maxQty < minQty) {
@@ -242,7 +244,7 @@ export class ProductsService {
       );
     }
 
-    // 2. Category change validation
+    // Validate category if updated
     let targetCategory: PrismaCategory | ICategory | null | undefined =
       product.category;
     const categoryChanged =
@@ -255,7 +257,7 @@ export class ProductsService {
       targetCategory = newCategory;
     }
 
-    // 3. Name uniqueness in category check
+    // Ensure name uniqueness in category
     const trimmedName = dto.name !== undefined ? dto.name.trim() : undefined;
     const targetName = trimmedName ?? product.name;
     const targetCategoryId = dto.categoryId ?? product.categoryId;
@@ -275,13 +277,11 @@ export class ProductsService {
       }
     }
 
-    // 4. Barcode uniqueness check
     if (dto.barcode !== undefined) {
       const trimmedBarcode = dto.barcode ? dto.barcode.trim() : null;
       if (trimmedBarcode && trimmedBarcode !== product.barcode) {
-        const existingBarcode = await this.productDb.findByBarcode(
-          trimmedBarcode,
-        );
+        const existingBarcode =
+          await this.productDb.findByBarcode(trimmedBarcode);
         if (existingBarcode && existingBarcode.id !== id) {
           throw new ConflictException(
             `A product with barcode "${trimmedBarcode}" already exists`,
@@ -290,7 +290,7 @@ export class ProductsService {
       }
     }
 
-    // 5. Batch tracked constraint: true -> false requires NO active batches
+    // Batch tracking cannot be disabled while active batches exist
     if (dto.batchTracked === false && product.batchTracked === true) {
       const hasActive = await this.productDb.hasActiveBatches(id);
       if (hasActive) {
@@ -300,7 +300,7 @@ export class ProductsService {
       }
     }
 
-    // 6. Generate Slug if name or category changed: <categorySlug>-<nameSlug>[-n]
+    // Recalculate slug if name or category changed
     let newSlug: string | undefined = undefined;
     if (nameChanged || categoryChanged) {
       const categorySlug =
@@ -323,10 +323,13 @@ export class ProductsService {
       name: trimmedName,
       slug: newSlug,
       description:
-        dto.description !== undefined ? dto.description.trim() || null : undefined,
+        dto.description !== undefined
+          ? dto.description.trim() || null
+          : undefined,
       barcode:
         dto.barcode !== undefined ? dto.barcode.trim() || null : undefined,
-      price: dto.price !== undefined ? new Prisma.Decimal(dto.price) : undefined,
+      price:
+        dto.price !== undefined ? new Prisma.Decimal(dto.price) : undefined,
       minimumOrderQuantity: dto.minimumOrderQuantity,
       maximumOrderQuantity: dto.maximumOrderQuantity,
       storageType: dto.storageType,
@@ -656,7 +659,9 @@ export class ProductsService {
   ): Promise<void> {
     const allergen = await this.productDb.findAllergenById(allergenId);
     if (!allergen || allergen.productId !== productId) {
-      throw new NotFoundException('Allergen declaration not found for this product');
+      throw new NotFoundException(
+        'Allergen declaration not found for this product',
+      );
     }
 
     await this.productDb.deleteAllergen(allergenId);

@@ -49,9 +49,7 @@ export class InventoryService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  /**
-   * Helper to format current date as YYYYMMDD
-   */
+  /** Formats date as YYYYMMDD */
   private formatYearMonthDay(date: Date): string {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -59,20 +57,14 @@ export class InventoryService {
     return `${y}${m}${d}`;
   }
 
-  /**
-   * Generates a unique batch code in format BATCH-YYYYMMDD-XXXXXXXXXXXX
-   */
+  /** Generates batch code (BATCH-YYYYMMDD-XXXXXXXXXXXX) */
   private generateBatchCode(): string {
     const dateStr = this.formatYearMonthDay(new Date());
     const randHex = crypto.randomBytes(6).toString('hex').toUpperCase();
     return `BATCH-${dateStr}-${randHex}`;
   }
 
-  /**
-   * Creates an inventory record for a product.
-   * Enforces 1:1 product to inventory mapping, validates batch requirements,
-   * creates initial batch if batchTracked, and logs an initial RECEIVED transaction.
-   */
+  /** Creates inventory record and initial batch if batch-tracked */
   async create(
     dto: CreateInventoryDto,
     adminId: string,
@@ -152,7 +144,7 @@ export class InventoryService {
             quantity: initialQty,
             reason: AdjustmentReason.RESTOCK,
             note: 'Initial inventory intake',
-            performedBy: adminId 
+            performedBy: adminId,
           },
           tx,
         );
@@ -201,7 +193,7 @@ export class InventoryService {
         .dispatchStockNotification(
           created.id,
           product.name,
-          created.stockStatus 
+          created.stockStatus,
         )
         .catch((err) => {
           this.logger.error(
@@ -213,10 +205,7 @@ export class InventoryService {
     return toInventoryResponse(created);
   }
 
-  /**
-   * Adjusts stock quantity for an inventory row (and corresponding batch if batch-tracked).
-   * Runs in an interactive transaction with row-level locks (SELECT ... FOR UPDATE).
-   */
+  /** Adjusts stock quantity with pessimistic row locks */
   async adjust(
     dto: InventoryAdjustmentDto,
     adminId?: string,
@@ -236,7 +225,7 @@ export class InventoryService {
     }
 
     const updated = await this.inventoryDb.runInTransaction(async (tx) => {
-      // 1. Lock the inventory row
+      // 1. Lock inventory row
       await this.inventoryDb.lockInventoryRow(dto.inventoryId, tx);
 
       const inventory = await this.inventoryDb.findById(dto.inventoryId, tx);
@@ -491,7 +480,7 @@ export class InventoryService {
         .dispatchStockNotification(
           updated.id,
           updated.product.name,
-          updated.stockStatus
+          updated.stockStatus,
         )
         .catch((err) => {
           this.logger.error(
@@ -606,21 +595,19 @@ export class InventoryService {
     for (const batch of expiredBatches) {
       try {
         const result = await this.inventoryDb.runInTransaction(async (tx) => {
-          // 1. Lock the inventory row to avoid concurrency races with checkout / adjustments
+          // Lock row for concurrency safety
           await this.inventoryDb.lockInventoryRow(batch.inventoryId, tx);
 
-          // 2. Guarded update: only mark EXPIRED if status is still ACTIVE
+          // Guarded status transition (ACTIVE -> EXPIRED)
           const updatedCount = await this.inventoryDb.expireActiveBatch(
             batch.id,
             tx,
           );
 
           if (updatedCount === 0) {
-            // Concurrently handled by another worker / transaction
-            return null;
+            return null; // Concurrently processed
           }
 
-          // 3. Retrieve current inventory on-hand qty
           const inventory = await this.inventoryDb.findById(
             batch.inventoryId,
             tx,
@@ -633,7 +620,7 @@ export class InventoryService {
           const previousStatus = inventory.stockStatus;
           const deductQty = batch.qtyOnHand;
 
-          // 4. Deduct quantity if batch had stock on hand
+          // Deduct expired batch stock
           if (deductQty > 0) {
             const newQty = Math.max(0, inventory.qtyOnHand - deductQty);
             await this.inventoryDb.updateInventory(
@@ -642,7 +629,6 @@ export class InventoryService {
               tx,
             );
 
-            // 5. Create ADJUSTMENT_DECREASE ledger transaction
             await this.inventoryDb.createTransaction(
               {
                 inventoryId: batch.inventoryId,
@@ -656,7 +642,6 @@ export class InventoryService {
             );
           }
 
-          // 6. Refresh stock status
           const nextStatus = await this.inventoryDb.refreshInventoryStatus(
             batch.inventoryId,
             tx,

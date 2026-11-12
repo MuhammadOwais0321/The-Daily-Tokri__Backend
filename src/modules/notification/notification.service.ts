@@ -13,8 +13,11 @@ export class NotificationService {
     private readonly notificationDb: NotificationDbService,
   ) {}
 
-  create(createNotificationDto: CreateNotificationDto) {
-    return 'This action adds a new notification';
+  async create(createNotificationDto: CreateNotificationDto) {
+    return this.notificationDb.upsertForUser(
+      createNotificationDto.userId,
+      createNotificationDto,
+    );
   }
 
   findAll() {
@@ -66,6 +69,67 @@ export class NotificationService {
     } catch (err) {
       this.logger.error(
         `Failed to dispatch stock notification for inventory "${inventoryId}": ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /**
+   * Dispatches an in-app notification to all active store administrators.
+   * Fire-and-forget; uses unique (userId, referenceId, referenceEvent) to prevent duplicate notifications.
+   * Verified against docs: 01 §2.8, 01 §14.
+   */
+  async dispatchAdminNotification(data: {
+    title: string;
+    message: string;
+    referenceId?: string;
+    referenceEvent?: string;
+  }): Promise<void> {
+    try {
+      const admins = await this.db.user.findMany({
+        where: { role: UserRole.ADMIN, isActive: true },
+        select: { id: true },
+      });
+
+      if (admins.length === 0) return;
+
+      await Promise.allSettled(
+        admins.map((admin) =>
+          this.notificationDb.upsertForUser(admin.id, data),
+        ),
+      );
+
+      this.logger.log(
+        `Admin notification "${data.title}" dispatched to ${admins.length} admin(s)`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to dispatch admin notification: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /**
+   * Dispatches an in-app notification to a specific user/customer.
+   * Fire-and-forget; uses unique (userId, referenceId, referenceEvent) to prevent duplicate notifications.
+   * Verified against docs: 01 §2.8, 01 §18, 01 §19.
+   */
+  async dispatchUserNotification(
+    userId: string,
+    data: {
+      title: string;
+      message: string;
+      referenceId?: string;
+      referenceEvent?: string;
+    },
+  ): Promise<void> {
+    try {
+      await this.notificationDb.upsertForUser(userId, data);
+      this.logger.log(
+        `User notification "${data.title}" dispatched to user ${userId}`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to dispatch user notification to user "${userId}": ${(err as Error).message}`,
       );
     }
   }

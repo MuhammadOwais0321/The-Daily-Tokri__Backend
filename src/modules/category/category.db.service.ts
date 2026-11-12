@@ -304,10 +304,7 @@ export class CategoryDbService {
     `;
   }
 
-  async delete(
-    id: string,
-    tx?: Prisma.TransactionClient,
-  ): Promise<Category> {
+  async delete(id: string, tx?: Prisma.TransactionClient): Promise<Category> {
     const client = this.getClient(tx);
     try {
       return await client.category.delete({

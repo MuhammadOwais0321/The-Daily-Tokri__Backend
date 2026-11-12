@@ -82,7 +82,6 @@ export class AuthService {
   }
 
   async register(registerDto: RegisterDto) {
-    // 1. Check duplicate email
     const existingEmail = await this.userDbService.findUserByEmail(
       registerDto.email,
     );
@@ -92,12 +91,11 @@ export class AuthService {
       );
     }
 
-    // 2. Clean phone: empty or whitespace becomes null so DB unique constraint is preserved
+    // Normalize empty or whitespace phone to null
     const cleanedPhone = registerDto.phone?.trim()
       ? registerDto.phone.trim()
       : null;
 
-    // 3. Check duplicate phone only if a valid non-empty phone is provided
     if (cleanedPhone) {
       const existingPhone =
         await this.userDbService.findUserByPhone(cleanedPhone);
@@ -108,12 +106,10 @@ export class AuthService {
       }
     }
 
-    // 4. Hash password via PasswordService (bcrypt cost 12)
     const passwordHash = await this.passwordService.hashPassword(
       registerDto.password,
     );
 
-    // 5. Create user with role CUSTOMER, isActive true, isEmailVerified false
     const user = await this.userDbService.createUser({
       name: registerDto.name,
       email: registerDto.email,
@@ -124,7 +120,7 @@ export class AuthService {
       isEmailVerified: false,
     });
 
-    // 6. Generate 6-digit OTP code, hash it, store in verification_codes
+    // Generate 6-digit OTP verification code (15-min expiry)
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
     const hashedCode = await this.passwordService.hashPassword(code);
@@ -142,7 +138,6 @@ export class AuthService {
       type: VerificationType.EMAIL_VERIFICATION,
     });
 
-    // 7. Send email with verification code (same logic as reset password)
     const isEmailSent = await this.emailService.sendVerificationCode(
       user.email,
       code,
@@ -152,7 +147,7 @@ export class AuthService {
       this.logger.warn(`Failed to send verification email to ${user.email}`);
     }
 
-    // 8. Fire-and-forget audit log
+    // Fire-and-forget audit log
     this.auditService
       .log({
         entityType: 'USER',
@@ -166,7 +161,6 @@ export class AuthService {
         this.logger.error('Failed to log registration audit event', err);
       });
 
-    // 9. Return response
     return {
       message:
         'Registration successful. Please verify your email with the verification code sent to your inbox.',
@@ -220,8 +214,7 @@ export class AuthService {
         {
           secret: accessSecret,
           expiresIn: accessExpiresIn as
-            | `${number}${'s' | 'm' | 'h' | 'd'}`
-            | number,
+            `${number}${'s' | 'm' | 'h' | 'd'}` | number,
         },
       ),
       this.jwtService.signAsync(
@@ -229,8 +222,7 @@ export class AuthService {
         {
           secret: refreshSecret,
           expiresIn: refreshExpiresIn as
-            | `${number}${'s' | 'm' | 'h' | 'd'}`
-            | number,
+            `${number}${'s' | 'm' | 'h' | 'd'}` | number,
         },
       ),
     ]);
@@ -677,17 +669,14 @@ export class AuthService {
       );
     }
 
-    // 1. Delete/clear the old cookie
+    // Rotate refresh token cookie and issue new access token
     this.clearRefreshTokenCookie(res);
 
-    // 2. Generate brand new accessToken (15m) and refreshToken (7d)
     const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
       await this.generateTokens(user);
 
-    // 3. Set the new refresh token cookie with new 7-day expiry
     this.setRefreshTokenCookie(res, newRefreshToken);
 
-    // 4. Return new access token and safe user
     return {
       accessToken: newAccessToken,
       user: toSafeUser(user),

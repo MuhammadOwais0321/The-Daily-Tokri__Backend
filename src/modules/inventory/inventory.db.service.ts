@@ -64,10 +64,7 @@ export class InventoryDbService {
     });
   }
 
-  async findExpiredActiveBatches(
-    today: Date,
-    tx?: Prisma.TransactionClient,
-  ) {
+  async findExpiredActiveBatches(today: Date, tx?: Prisma.TransactionClient) {
     const client = tx ?? this.db;
     return client.inventoryBatch.findMany({
       where: {

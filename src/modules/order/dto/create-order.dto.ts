@@ -9,7 +9,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
-import { DeliveryType } from '../../../common/enums';
+import { DeliveryType } from '@prisma/client';
 import { OrderAddressDto } from './order-address.dto';
 
 export class CreateOrderDto {

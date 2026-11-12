@@ -28,10 +28,7 @@ import 'multer';
 export class AdminCategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
-  /**
-   * Admin category tree (includes inactive categories by default)
-   * Placed before :id to prevent route shadowing
-   */
+  /** Full category hierarchy tree */
   @Get('tree')
   getTree(@Query('onlyActive') onlyActive?: string) {
     const activeOnly = onlyActive === 'true';
@@ -41,25 +38,19 @@ export class AdminCategoryController {
     );
   }
 
-  /**
-   * Admin category list (includes inactive categories by default)
-   */
+  /** List all categories with pagination */
   @Get()
   findAll(@Query() query: CategoryQueryDto) {
     return this.categoryService.findAll(query, false);
   }
 
-  /**
-   * Admin category detail (accessible even if category is inactive)
-   */
+  /** Category detail */
   @Get(':id')
   findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.categoryService.findOne(id, false);
   }
 
-  /**
-   * Admin: Create category
-   */
+  /** Create category */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -70,9 +61,7 @@ export class AdminCategoryController {
     return this.categoryService.create(createCategoryDto, adminId);
   }
 
-  /**
-   * Admin: Update category & re-parenting
-   */
+  /** Update category & re-parenting */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Patch(':id')
   update(
@@ -83,9 +72,7 @@ export class AdminCategoryController {
     return this.categoryService.update(id, updateCategoryDto, adminId);
   }
 
-  /**
-   * Admin: Delete category
-   */
+  /** Delete category */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -96,9 +83,7 @@ export class AdminCategoryController {
     return this.categoryService.remove(id, adminId);
   }
 
-  /**
-   * Admin: Upload category image to S3 (Pattern 2)
-   */
+  /** Upload category image to S3 */
   @Throttle(RATE_LIMITS.ADMIN_IMAGE_UPLOAD)
   @Post(':id/image')
   @UseInterceptors(FileInterceptor('image'))
@@ -110,9 +95,7 @@ export class AdminCategoryController {
     return this.categoryService.uploadImage(id, file, adminId);
   }
 
-  /**
-   * Admin: Delete category image from S3
-   */
+  /** Delete category image from S3 */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Delete(':id/image')
   deleteImage(

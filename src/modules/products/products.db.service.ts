@@ -38,9 +38,9 @@ export class ProductsDbService {
       .padEnd(3, 'X');
 
     try {
-      const result = await client.$queryRaw<{ nextval: bigint | number | string }[]>(
-        Prisma.sql`SELECT nextval('product_sku_seq') as nextval`,
-      );
+      const result = await client.$queryRaw<
+        { nextval: bigint | number | string }[]
+      >(Prisma.sql`SELECT nextval('product_sku_seq') as nextval`);
       const seqNum = Number(result[0].nextval);
       const padded = String(seqNum).padStart(6, '0');
       return `${cleanPrefix}-${padded}`;
@@ -48,9 +48,9 @@ export class ProductsDbService {
       await client.$executeRaw(
         Prisma.sql`CREATE SEQUENCE IF NOT EXISTS "product_sku_seq" START 1;`,
       );
-      const result = await client.$queryRaw<{ nextval: bigint | number | string }[]>(
-        Prisma.sql`SELECT nextval('product_sku_seq') as nextval`,
-      );
+      const result = await client.$queryRaw<
+        { nextval: bigint | number | string }[]
+      >(Prisma.sql`SELECT nextval('product_sku_seq') as nextval`);
       const seqNum = Number(result[0].nextval);
       const padded = String(seqNum).padStart(6, '0');
       return `${cleanPrefix}-${padded}`;
@@ -384,10 +384,7 @@ export class ProductsDbService {
     });
   }
 
-  async clearPrimaryImages(
-    productId: string,
-    tx?: Prisma.TransactionClient,
-  ) {
+  async clearPrimaryImages(productId: string, tx?: Prisma.TransactionClient) {
     const client = tx ?? this.db;
     return client.productImage.updateMany({
       where: { productId, isPrimary: true },

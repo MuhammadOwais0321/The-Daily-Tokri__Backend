@@ -29,36 +29,25 @@ import { PaginationDto } from '../../common/pagination';
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
-  /**
-   * Static route: List active products that do not have an inventory record yet.
-   * Placed before :id to prevent route shadowing.
-   */
+  /** List active products without inventory */
   @Get('available-products')
   findAvailableProducts(@Query() query: PaginationDto) {
     return this.inventoryService.findAvailableProducts(query);
   }
 
-  /**
-   * Static route: Query inventory transaction ledger across all products.
-   * Placed before :id to prevent route shadowing.
-   */
+  /** Global inventory transaction ledger */
   @Get('transactions')
   findTransactions(@Query() query: InventoryTransactionsQueryDto) {
     return this.inventoryService.findTransactions(query);
   }
 
-  /**
-   * List inventory records with pagination, stockStatus filter, and search.
-   */
+  /** List inventory records */
   @Get()
   findAll(@Query() query: InventoryQueryDto) {
     return this.inventoryService.findAll(query);
   }
 
-  /**
-   * Sub-resource route for transactions of a specific inventory.
-   * Placed before :id to prevent collision.
-   */
+  /** Transactions for specific inventory */
   @Get(':id/transactions')
   findInventoryTransactions(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -67,17 +56,13 @@ export class InventoryController {
     return this.inventoryService.findTransactionsByInventoryId(id, query);
   }
 
-  /**
-   * Inventory detail by UUID.
-   */
+  /** Inventory detail */
   @Get(':id')
   findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.inventoryService.findOne(id);
   }
 
-  /**
-   * Create inventory for a product.
-   */
+  /** Create inventory record */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -85,9 +70,7 @@ export class InventoryController {
     return this.inventoryService.create(dto, adminId);
   }
 
-  /**
-   * Adjust stock quantity (increase / decrease) with reason and ledger tracking.
-   */
+  /** Adjust stock quantity */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Post('adjustments')
   @HttpCode(HttpStatus.CREATED)
@@ -98,9 +81,7 @@ export class InventoryController {
     return this.inventoryService.adjust(dto, adminId);
   }
 
-  /**
-   * Update inventory lowStockThreshold or batch expiry.
-   */
+  /** Update inventory threshold or batch expiry */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Patch(':id')
   update(

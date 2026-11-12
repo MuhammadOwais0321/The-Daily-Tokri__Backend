@@ -10,7 +10,9 @@ export class BatchExpiryCron {
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async handleBatchExpiry(): Promise<void> {
-    this.logger.log('Running scheduled batch expiry check (every 5 minutes)...');
+    this.logger.log(
+      'Running scheduled batch expiry check (every 5 minutes)...',
+    );
     try {
       const result = await this.inventoryService.processBatchExpiry();
       if (result.processed > 0) {

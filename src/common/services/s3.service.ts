@@ -48,10 +48,7 @@ export class S3Service {
     }
   }
 
-  /**
-   * Uploads an image buffer to S3 with a randomized safe key (uuid)
-   * Prevents directory traversal and overwrites.
-   */
+  /** Uploads image buffer to S3 with safe unique key */
   async uploadFile(
     file: Express.Multer.File,
     folder: string = 'categories',
@@ -93,10 +90,7 @@ export class S3Service {
     }
   }
 
-  /**
-   * Deletes an object from S3 by URL or Key.
-   * Best-effort: does not throw if file is already deleted.
-   */
+  /** Deletes object from S3 (best-effort) */
   async deleteFile(fileUrlOrKey: string): Promise<void> {
     if (!fileUrlOrKey || !this.s3Client) {
       return;
@@ -104,11 +98,13 @@ export class S3Service {
 
     try {
       let key = fileUrlOrKey;
-      if (fileUrlOrKey.startsWith('http://') || fileUrlOrKey.startsWith('https://')) {
+      if (
+        fileUrlOrKey.startsWith('http://') ||
+        fileUrlOrKey.startsWith('https://')
+      ) {
         const url = new URL(fileUrlOrKey);
-        // Extracts path without leading slash
+        // Strip leading slash and bucket name
         key = url.pathname.replace(/^\/+/, '');
-        // If path starts with bucket name (path-style url), remove it
         if (key.startsWith(`${this.bucket}/`)) {
           key = key.replace(`${this.bucket}/`, '');
         }

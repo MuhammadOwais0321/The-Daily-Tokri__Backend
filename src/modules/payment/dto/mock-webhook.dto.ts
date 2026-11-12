@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class MockWebhookDto {
   @IsString()
@@ -18,4 +25,9 @@ export class MockWebhookDto {
   @IsString()
   @MaxLength(255)
   failureReason?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  amountPence?: number;
 }

@@ -45,7 +45,7 @@ export class ErrorsExceptionFilter implements ExceptionFilter {
       return;
     }
 
-    // 1. NestJS HttpException handling -> standard { statusCode, message, error }
+    // 1. HttpException handling
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
@@ -157,7 +157,7 @@ export class ErrorsExceptionFilter implements ExceptionFilter {
       return;
     }
 
-    // 4. Other Prisma database errors (initialization, rust panic, unknown, etc.)
+    // 4. Other Prisma database errors
     const isOtherPrismaError =
       exception instanceof PrismaClientInitializationError ||
       exception instanceof PrismaClientRustPanicError ||
@@ -176,7 +176,7 @@ export class ErrorsExceptionFilter implements ExceptionFilter {
       return;
     }
 
-    // 5. Baaki unhandled errors (500) -> Internal Server Error (stack only in server log)
+    // 5. Unhandled internal server errors (500)
     const err =
       exception instanceof Error ? exception : new Error(String(exception));
     this.logger.error(

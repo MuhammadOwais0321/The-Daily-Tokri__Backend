@@ -33,10 +33,7 @@ export class CategoryService {
     private readonly auditService: AuditService,
   ) {}
 
-  async create(
-    dto: CreateCategoryDto,
-    adminId?: string,
-  ): Promise<ICategory> {
+  async create(dto: CreateCategoryDto, adminId?: string): Promise<ICategory> {
     const trimmedName = dto.name.trim();
     const slug = slugify(trimmedName);
 
@@ -70,14 +67,14 @@ export class CategoryService {
         throw new NotFoundException('Parent category not found');
       }
 
-      // Max depth check: depth can be 0, 1, 2. If parent is already depth 2, cannot add child.
+      // Enforce max depth constraint
       if (parent.depth >= CATEGORY_MAX_DEPTH) {
         throw new BadRequestException(
           `Maximum category depth of 3 levels (depth 0, 1, 2) reached. Cannot add subcategory under depth ${parent.depth}.`,
         );
       }
 
-      // Parent with products cannot have subcategories -> 409
+      // Cannot add subcategory if parent has products
       const parentHasProducts = await this.categoryDb.hasProducts(parent.id);
       if (parentHasProducts) {
         throw new ConflictException(
@@ -85,7 +82,7 @@ export class CategoryService {
         );
       }
 
-      // bestCategory cannot be set on subcategories
+      // bestCategory restricted to top-level
       if (dto.bestCategory) {
         throw new BadRequestException(
           'Only top-level (depth 0) categories can be marked as best category',
@@ -97,7 +94,7 @@ export class CategoryService {
       path = `${parentPath}${slug}/`;
       parentId = parent.id;
     } else {
-      // Top-level category bestCategory check
+      // Validate max best categories limit
       if (dto.bestCategory) {
         const bestCount = await this.categoryDb.countBestCategories();
         if (bestCount >= MAX_BEST_CATEGORIES) {
@@ -108,7 +105,6 @@ export class CategoryService {
       }
     }
 
-    // 3. Insert and update parent leaf status in transaction
     const created = await this.categoryDb.runInTransaction(async (tx) => {
       const newCategory = await this.categoryDb.create(
         {
@@ -126,7 +122,7 @@ export class CategoryService {
         tx,
       );
 
-      // If parent was a leaf, it is now no longer a leaf
+      // Parent is no longer a leaf
       if (parentId) {
         await this.categoryDb.updateParentIsLeaf(parentId, false, tx);
       }
@@ -201,7 +197,10 @@ export class CategoryService {
     return toCategoryResponse(category);
   }
 
-  async findBySlug(slug: string, isPublic: boolean = false): Promise<ICategory> {
+  async findBySlug(
+    slug: string,
+    isPublic: boolean = false,
+  ): Promise<ICategory> {
     const category = await this.categoryDb.findBySlug(slug);
     if (!category) {
       throw new NotFoundException('Category not found');
@@ -252,7 +251,7 @@ export class CategoryService {
     let targetDepth = category.depth;
     let targetParentId = category.parentId;
     let isParentChanging = false;
-    let oldParentId = category.parentId;
+    const oldParentId = category.parentId;
     let newPath = category.path || `/${category.slug}/`;
 
     if (dto.parentId !== undefined) {
@@ -386,8 +385,10 @@ export class CategoryService {
         }
 
         if (oldParentId) {
-          const remainingChildren =
-            await this.categoryDb.countChildren(oldParentId, tx);
+          const remainingChildren = await this.categoryDb.countChildren(
+            oldParentId,
+            tx,
+          );
           if (remainingChildren === 0) {
             await this.categoryDb.updateParentIsLeaf(oldParentId, true, tx);
           }

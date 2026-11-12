@@ -23,7 +23,6 @@ export class JwtAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    // 1. Agar route @Public() hai → foran allow.
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -34,7 +33,6 @@ export class JwtAuthGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
-    // 2. Authorization header missing → 401 Authorization header missing.
     const rawAuthHeader =
       request.headers['authorization'] || request.headers['Authorization'];
     const authHeader: string | undefined = Array.isArray(rawAuthHeader)
@@ -45,7 +43,6 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Authorization header missing');
     }
 
-    // 3. Bearer <token> format nahi → 401 Invalid authorization header format.
     const parts = authHeader.trim().split(/\s+/);
     if (parts.length !== 2 || parts[0] !== 'Bearer' || !parts[1]) {
       throw new UnauthorizedException('Invalid authorization header format');
@@ -83,21 +80,19 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid authentication token');
     }
 
-    // 5. Token ke sub (userId) se DB user nikalo. Na mile → 401.
+    // Verify user exists and account is active
     const user = await this.authService.findAuthUser(payload.sub);
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
 
-    // 6. isActive = false → 403 User account is deactivated. Please contact support.
     if (!user.isActive) {
       throw new ForbiddenException(
         'User account is deactivated. Please contact support.',
       );
     }
 
-    // 7. Role DB se liya jata hai (token se nahi), phir route ke @Roles('ROLE') check.
-    //    Fail → 403 Insufficient permissions.
+    // Enforce role-based access control
     const requiredRoles = this.reflector.getAllAndOverride<string[]>(
       ROLES_KEY,
       [context.getHandler(), context.getClass()],
@@ -109,7 +104,6 @@ export class JwtAuthGuard implements CanActivate {
       }
     }
 
-    // req.user aur req.dbUser attach karo
     request.user = user;
     request.dbUser = user;
 
