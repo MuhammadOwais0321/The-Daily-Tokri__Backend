@@ -1,21 +1,18 @@
-import { IsDateString, IsEnum, IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { AuditActorType } from '@prisma/client';
 import { PaginationDto } from '../../../common/pagination';
-import { AuditActorType } from '../../../common/enums';
 
 export class AuditQueryDto extends PaginationDto {
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
   @IsString()
+  @MaxLength(50)
   entityType?: string;
 
   @IsOptional()
   @IsEnum(AuditActorType)
   actorType?: AuditActorType;
-
-  @IsOptional()
-  @IsDateString()
-  dateFrom?: string;
-
-  @IsOptional()
-  @IsDateString()
-  dateTo?: string;
 }

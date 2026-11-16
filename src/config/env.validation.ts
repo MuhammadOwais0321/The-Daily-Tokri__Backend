@@ -77,6 +77,10 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   MOCK_PAYMENT_WEBHOOK_SECRET?: string;
+
+  @IsNumber()
+  @IsOptional()
+  NOTIFICATION_RETENTION_DAYS?: number;
 }
 
 export function validateEnvironment(

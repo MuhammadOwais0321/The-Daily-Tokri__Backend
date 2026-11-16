@@ -1,8 +1,12 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 export class AdminReplyReviewDto {
-  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
+  @IsNotEmpty({ message: 'Admin reply is required' })
   @MaxLength(500, { message: 'Admin reply cannot exceed 500 characters' })
-  adminReply?: string;
+  adminReply: string;
 }

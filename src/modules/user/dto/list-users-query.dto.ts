@@ -1,11 +1,21 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
+import { UserRole } from '@prisma/client';
 import { PaginationDto } from '../../../common/pagination';
-import { UserRole } from '../../../common/enums';
 
 export class ListUsersQueryDto extends PaginationDto {
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
+  @MaxLength(100)
   search?: string;
 
   @IsOptional()
@@ -14,23 +24,23 @@ export class ListUsersQueryDto extends PaginationDto {
 
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
-    value === 'true' ? true : value === 'false' ? false : value,
+    value === 'true' || value === true
+      ? true
+      : value === 'false' || value === false
+        ? false
+        : value,
   )
   @IsBoolean()
   isActive?: boolean;
 
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
-    value === 'true' ? true : value === 'false' ? false : value,
+    value === 'true' || value === true
+      ? true
+      : value === 'false' || value === false
+        ? false
+        : value,
   )
   @IsBoolean()
   includeDeleted?: boolean;
-
-  @IsOptional()
-  @IsString()
-  sortBy?: string;
-
-  @IsOptional()
-  @IsIn(['asc', 'desc', 'ASC', 'DESC'])
-  sortOrder?: 'asc' | 'desc' | 'ASC' | 'DESC';
 }

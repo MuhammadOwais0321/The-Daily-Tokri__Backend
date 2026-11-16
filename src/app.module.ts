@@ -22,7 +22,6 @@ import { SupplierModule } from './modules/supplier/supplier.module';
 import { ProductsModule } from './modules/products/products.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { NotificationModule } from './modules/notification/notification.module';
-import { EventsModule } from './modules/events/events.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { HealthModule } from './modules/health/health.module';
@@ -49,7 +48,6 @@ import { HealthModule } from './modules/health/health.module';
     ProductsModule,
     InventoryModule,
     NotificationModule,
-    EventsModule,
     DashboardModule,
     AuditModule,
     HealthModule,

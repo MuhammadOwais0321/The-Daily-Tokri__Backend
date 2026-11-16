@@ -5,8 +5,12 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { DeliveryType, OrderStatus, Prisma } from '@prisma/client';
-import { AuditActorType } from '../../../common/enums';
+import {
+  AuditActorType,
+  DeliveryType,
+  OrderStatus,
+  Prisma,
+} from '@prisma/client';
 import { AuditService } from '../../audit/audit.service';
 import { NotificationService } from '../../notification/notification.service';
 import { AuthUser } from '../../auth/types';

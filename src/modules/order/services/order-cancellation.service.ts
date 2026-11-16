@@ -6,12 +6,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  AuditActorType,
   BatchStatus,
   OrderStatus,
   PaymentStatus,
   TransactionType,
 } from '@prisma/client';
-import { AuditActorType, OrderCancellationReason } from '../../../common/enums';
+import { OrderCancellationReason } from '../../../common/enums';
 import { AuditService } from '../../audit/audit.service';
 import { InventoryDbService } from '../../inventory/inventory.db.service';
 import { NotificationService } from '../../notification/notification.service';

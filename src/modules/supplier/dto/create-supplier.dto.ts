@@ -9,29 +9,46 @@ import {
 } from 'class-validator';
 
 export class CreateSupplierDto {
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(100)
+  @IsNotEmpty({ message: 'Supplier name is required' })
+  @MaxLength(100, { message: 'Supplier name must not exceed 100 characters' })
   name: string;
 
-  @IsEmail()
-  @MaxLength(255)
-  @Transform(({ value }: { value?: string }) => value?.trim().toLowerCase())
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsEmail({}, { message: 'Please provide a valid email address' })
+  @IsNotEmpty({ message: 'Email is required' })
+  @MaxLength(255, { message: 'Email must not exceed 255 characters' })
   email: string;
 
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @IsNotEmpty({ message: 'Phone number is required' })
-  @MaxLength(20)
+  @MaxLength(20, { message: 'Phone number must not exceed 20 characters' })
   phone: string;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
-  @MaxLength(100)
+  @MaxLength(100, {
+    message: 'Contact person name must not exceed 100 characters',
+  })
   contactPerson?: string;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
-  @MaxLength(255)
+  @MaxLength(255, { message: 'Address must not exceed 255 characters' })
   address?: string;
 
   @IsOptional()

@@ -1,8 +1,17 @@
+import { Transform } from 'class-transformer';
 import { IsIn, IsOptional } from 'class-validator';
+import {
+  DASHBOARD_PERIODS,
+  type DashboardPeriod,
+} from '../../../common/period';
 
 export class DashboardQueryDto {
   @IsOptional()
-  @IsIn(['today', 'yesterday', 'last_7', 'last_30', 'this_month', 'last_month'])
-  period?:
-    'today' | 'yesterday' | 'last_7' | 'last_30' | 'this_month' | 'last_month';
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsIn(DASHBOARD_PERIODS, {
+    message: `period must be one of: ${DASHBOARD_PERIODS.join(', ')}`,
+  })
+  period?: DashboardPeriod;
 }

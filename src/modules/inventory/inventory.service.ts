@@ -30,11 +30,11 @@ import {
 } from './mappers';
 import {
   AdjustmentReason,
+  AuditActorType,
   BatchStatus,
   StockStatus,
   TransactionType,
 } from '@prisma/client';
-import { AuditActorType } from '../../common/enums';
 import { buildMeta, PaginationDto } from '../../common/pagination';
 import * as crypto from 'crypto';
 

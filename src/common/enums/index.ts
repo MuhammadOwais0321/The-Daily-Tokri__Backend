@@ -7,5 +7,4 @@ export * from './address.enum';
 export * from './batch.enum';
 export * from './allergen.enum';
 export * from './review.enum';
-export * from './audit.enum';
 export * from './verification.enum';

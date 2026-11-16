@@ -5,8 +5,13 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
-import { AuditActorType, PaymentMethod, PaymentProvider } from '../../../common/enums';
+import {
+  AuditActorType,
+  OrderStatus,
+  PaymentStatus,
+  Prisma,
+} from '@prisma/client';
+import { PaymentMethod, PaymentProvider } from '../../../common/enums';
 import {
   PAYMENT_GATEWAY,
   type IPaymentGateway,

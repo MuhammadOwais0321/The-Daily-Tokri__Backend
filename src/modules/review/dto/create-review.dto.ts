@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsInt,
   IsNotEmpty,
@@ -22,7 +22,10 @@ export class CreateReviewDto {
   rating: number;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
-  @MaxLength(1000)
+  @MaxLength(1000, { message: 'Comment cannot exceed 1000 characters' })
   comment?: string;
 }

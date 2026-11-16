@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { CreateAuditDto } from './dto/create-audit.dto';
-import { AuditQueryDto } from './dto/audit-query.dto';
-import { AuditDbService } from './audit.db.service';
 import { buildMeta } from '../../common/pagination';
+import { AuditDbService } from './audit.db.service';
+import { AuditQueryDto } from './dto';
+import { toAuditLogResponse } from './mappers';
+import { IAuditLogListResponse, ICreateAuditData } from './types';
 
 @Injectable()
 export class AuditService {
@@ -10,12 +11,16 @@ export class AuditService {
 
   constructor(private readonly auditDb: AuditDbService) {}
 
-  async log(createAuditDto: CreateAuditDto): Promise<void> {
-    // Fire-and-forget logging: do not let audit failure crash the caller
+  /**
+   * Fire-and-forget audit logger used across all domain modules.
+   * Never throws: any persistence error is logged so the caller's main flow never fails.
+   * Verified against docs: 01 §2.7, 11 §6.
+   */
+  async log(data: ICreateAuditData): Promise<void> {
     try {
-      await this.auditDb.create(createAuditDto);
+      await this.auditDb.create(data);
       this.logger.log(
-        `Audit logged: ${createAuditDto.action} on ${createAuditDto.entityType} (ID: ${createAuditDto.entityId ?? 'N/A'}) by ${createAuditDto.actorType ?? 'USER'} (${createAuditDto.actorId ?? 'N/A'})`,
+        `Audit logged: ${data.action} on ${data.entityType} (ID: ${data.entityId ?? 'N/A'}) by ${data.actorType ?? 'USER'} (${data.actorId ?? 'N/A'})`,
       );
     } catch (error) {
       this.logger.error(
@@ -25,10 +30,14 @@ export class AuditService {
     }
   }
 
-  async findAll(query: AuditQueryDto) {
+  /**
+   * Admin: Paginated list of today's audit logs filtered by entityType and/or actorType.
+   * Verified against docs: 01 §2.7, 01 §22.6.
+   */
+  async findAll(query: AuditQueryDto): Promise<IAuditLogListResponse> {
     const { data, total, page, limit } = await this.auditDb.findMany(query);
     return {
-      data,
+      data: data.map(toAuditLogResponse),
       meta: buildMeta(total, page, limit),
     };
   }

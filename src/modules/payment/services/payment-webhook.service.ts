@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
-import { AuditActorType } from '../../../common/enums';
+import {
+  AuditActorType,
+  OrderStatus,
+  PaymentStatus,
+  Prisma,
+} from '@prisma/client';
 import { AuditService } from '../../audit/audit.service';
 import { NotificationService } from '../../notification/notification.service';
 import { PaymentDbService } from '../payment.db.service';

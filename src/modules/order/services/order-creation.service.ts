@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  AuditActorType,
   BatchStatus,
   DeliveryType,
   OrderStatus,
@@ -12,7 +13,6 @@ import {
   Prisma,
   TransactionType,
 } from '@prisma/client';
-import { AuditActorType } from '../../../common/enums';
 import { AddressDbService } from '../../addresses/address.db.service';
 import { AuditService } from '../../audit/audit.service';
 import { CartService } from '../../cart/cart.service';

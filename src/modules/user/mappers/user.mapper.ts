@@ -1,20 +1,21 @@
-import { User } from '@prisma/client';
+import { Prisma, User, UserPreference } from '@prisma/client';
+import { toDecimalString } from '../../../common/utils/decimal';
 import { stripDeletedEmailPrefix } from '../../auth/mappers/auth.mapper';
+import {
+  IUserPreferenceResponse,
+  IUserProfileResponse,
+  IUserStatsResponse,
+  UserProfileResponse,
+} from '../types';
 
-export interface UserProfileResponse {
-  id: string;
-  name: string;
-  email: string;
-  phone: string | null;
-  role: string;
-  isActive: boolean;
-  totalOrders: number;
-  totalSpent: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
+export type { UserProfileResponse };
 
-export function toUserProfileResponse(user: User): UserProfileResponse {
+/**
+ * Maps a User record to a safe profile response.
+ * Never includes `passwordHash` and always strips the `[DELETED] <id>:` prefix from anonymized emails.
+ * Verified against docs: 01 §6, 04 §7, 06 §4, 10 §3.
+ */
+export function toUserProfileResponse(user: User): IUserProfileResponse {
   return {
     id: user.id,
     name: user.name,
@@ -22,9 +23,37 @@ export function toUserProfileResponse(user: User): UserProfileResponse {
     phone: user.phone,
     role: user.role,
     isActive: user.isActive,
+    isEmailVerified: user.isEmailVerified,
     totalOrders: user.totalOrders,
-    totalSpent: user.totalSpent.toString(),
+    totalSpent: toDecimalString(user.totalSpent),
+    lastLoginAt: user.lastLoginAt ?? null,
+    deletedAt: user.deletedAt ?? null,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
+  };
+}
+
+export function toUserStatsResponse(stats: {
+  totalOrders: number;
+  totalSpent: Prisma.Decimal;
+  avgRating: number;
+}): IUserStatsResponse {
+  return {
+    totalOrders: stats.totalOrders,
+    totalSpent: toDecimalString(stats.totalSpent),
+    avgRating: stats.avgRating,
+  };
+}
+
+export function toUserPreferenceResponse(
+  pref: UserPreference,
+): IUserPreferenceResponse {
+  return {
+    id: pref.id,
+    userId: pref.userId,
+    pushNotification: pref.pushNotification,
+    emailNotification: pref.emailNotification,
+    createdAt: pref.createdAt,
+    updatedAt: pref.updatedAt,
   };
 }

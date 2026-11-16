@@ -35,9 +35,12 @@ import {
   toPublicProductSummary,
   toAdminProductSummary,
 } from './mappers';
-import { AuditActorType } from '../../common/enums';
 import { buildMeta } from '../../common/pagination';
-import { Category as PrismaCategory, Prisma } from '@prisma/client';
+import {
+  AuditActorType,
+  Category as PrismaCategory,
+  Prisma,
+} from '@prisma/client';
 import { ICategory } from '../category/types';
 import { slugify } from '../../common/utils';
 import 'multer';

@@ -17,7 +17,7 @@ import {
 import { toCategoryResponse, toCategoryTreeNode } from './mappers';
 import { S3Service } from '../../common/services/s3.service';
 import { AuditService } from '../audit/audit.service';
-import { AuditActorType } from '../../common/enums';
+import { AuditActorType } from '@prisma/client';
 import { slugify } from '../../common/utils';
 import 'multer';
 

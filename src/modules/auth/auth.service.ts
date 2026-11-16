@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { UserRole, VerificationType } from '@prisma/client';
+import { AuditActorType, UserRole, VerificationType } from '@prisma/client';
 import type { Request, Response, CookieOptions } from 'express';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -22,7 +22,6 @@ import { PasswordService } from './password.service';
 import { UserDbService } from '../user/user.db.service';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../../common/services/email.service';
-import { AuditActorType } from '../../common/enums';
 import { toSafeUser } from './mappers/auth.mapper';
 import { AuthUser, JwtPayload } from './types';
 

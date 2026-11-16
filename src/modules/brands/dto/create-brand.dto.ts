@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsNotEmpty,
@@ -7,15 +8,13 @@ import {
 } from 'class-validator';
 
 export class CreateBrandDto {
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(100)
+  @IsNotEmpty({ message: 'Brand name is required' })
+  @MaxLength(100, { message: 'Brand name must not exceed 100 characters' })
   name: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  logoUrl?: string;
 
   @IsOptional()
   @IsBoolean()
