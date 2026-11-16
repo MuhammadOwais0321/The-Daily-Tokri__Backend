@@ -4,11 +4,7 @@ import { OrderDbService } from '../order.db.service';
 import { OrderCancellationService } from '../services/order-cancellation.service';
 
 /**
- * Sweeps for unpaid PENDING orders whose payment expiration time has passed (5 minutes)
- * and automatically cancels them, restoring reserved/deducted stock.
- *
- * Runs every minute as a scheduled task.
- * Verified against docs: 01 §17, 11 §6.
+ * Every-minute cron job that auto-cancels expired unpaid `PENDING` orders and restores stock.
  */
 @Injectable()
 export class OrderPaymentTimeoutCron {
@@ -42,8 +38,7 @@ export class OrderPaymentTimeoutCron {
           await this.cancellationService.cancelSystemTimeoutOrder(order);
           cancelledCount++;
         } catch (err) {
-          // If a race occurred (e.g. order was confirmed or cancelled by user in parallel),
-          // guarded update throws ConflictException (409). Skip gracefully as per docs 01 §17.
+          // Skip gracefully if the order transitioned concurrently
           this.logger.warn(
             `Skipping auto-cancel for order ${order.orderNumber} (${order.id}): ${(err as Error).message}`,
           );

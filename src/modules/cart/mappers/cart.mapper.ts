@@ -9,10 +9,7 @@ import {
 } from '../types';
 import { toDecimalString } from '../../../common/utils/decimal';
 
-/**
- * Maps a CartItem database record with its relations to ICartItemResponse.
- * Uses stock and availability data evaluated by the service layer.
- */
+/** Maps a cart item entity and its computed stock state to `ICartItemResponse`. */
 export function toCartItemResponse(
   item: CartItemWithProduct,
   stockInfo?: CartItemStockInfo,
@@ -65,10 +62,7 @@ export function toCartItemResponse(
   };
 }
 
-/**
- * Maps a Cart database record with all relations to ICartResponse.
- * Accepts an optional map of precomputed stock information from the service layer.
- */
+/** Maps a cart entity and its items to `ICartResponse` with computed totals. */
 export function toCartResponse(
   cart: CartWithRelations,
   stockInfoMap?: Map<string, CartItemStockInfo>,

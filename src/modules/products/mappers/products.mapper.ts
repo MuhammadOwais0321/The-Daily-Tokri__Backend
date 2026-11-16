@@ -32,15 +32,7 @@ export function toProductAllergen(alg: ProductAllergen): IProductAllergen {
   };
 }
 
-/**
- * Maps a product entity to a public customer response.
- * Strips out sensitive admin fields:
- * - supplierId / supplier
- * - qtyOnHand (only stockStatus is provided)
- * - barcode
- * - batchTracked
- * - isActive / isVisible
- */
+/** Maps a product entity to a public customer response, excluding internal admin fields. */
 export function toPublicProductResponse(
   product: ProductWithRelations,
 ): IPublicProduct {
@@ -88,10 +80,7 @@ export function toPublicProductResponse(
   };
 }
 
-/**
- * Maps a product entity to an admin response.
- * Contains all fields including supplier, qtyOnHand, barcode, batchTracked, isActive, isVisible.
- */
+/** Maps a product entity to a full admin response including inventory, supplier, and visibility fields. */
 export function toAdminProductResponse(
   product: ProductWithRelations,
 ): IAdminProduct {
@@ -114,13 +103,9 @@ export function toAdminProductResponse(
   };
 }
 
-/** Backward-compatible alias for admin product response */
 export const toProductResponse = toAdminProductResponse;
 
-/**
- * Maps a product entity to a public summary for catalog listings.
- * Excludes internal fields (barcode, isActive, isVisible, qtyOnHand, supplier).
- */
+/** Maps a product entity to a public summary for catalog listings. */
 export function toPublicProductSummary(
   product: ProductWithRelations,
 ): IPublicProductSummary {
@@ -149,9 +134,7 @@ export function toPublicProductSummary(
   };
 }
 
-/**
- * Maps a product entity to an admin summary with internal inventory and visibility details.
- */
+/** Maps a product entity to an admin summary with internal inventory and supplier details. */
 export function toAdminProductSummary(
   product: ProductWithRelations,
 ): IAdminProductSummary {
@@ -167,5 +150,4 @@ export function toAdminProductSummary(
   };
 }
 
-/** Backward-compatible alias for admin product summary */
 export const toProductSummary = toAdminProductSummary;

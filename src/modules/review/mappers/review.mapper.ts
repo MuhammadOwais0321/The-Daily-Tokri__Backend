@@ -12,12 +12,7 @@ export function toReviewImageResponse(img: ReviewImage): IReviewImage {
   };
 }
 
-/**
- * Maps a Prisma review record with relations to an API response.
- * When `isPublic` is true:
- * - Strips reviewer email to prevent PII exposure on public product pages.
- * - Omits internal orderNumber reference.
- */
+/** Maps a review entity to `IReviewResponse` (omits reviewer email and orderNumber when `isPublic` is true). */
 export function toReviewResponse(
   review: ReviewWithRelations,
   options?: { isPublic?: boolean },

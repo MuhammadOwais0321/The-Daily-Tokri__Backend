@@ -1,9 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditActorType, Prisma } from '@prisma/client';
 import {
   PAYMENT_GATEWAY,
@@ -14,15 +9,7 @@ import { NotificationService } from '../../notification/notification.service';
 import { PaymentDbService } from '../payment.db.service';
 
 /**
- * Handles all refund operations.
- *
- * Rules (Docs 01 §20, 01 §2.9):
- * - External gateway call happens AFTER DB transaction commit.
- * - On failure, order stays REFUND_PENDING so the retry cron picks it up.
- * - Idempotent: "already refunded" gateway responses are treated as success.
- * - processRefundInTx uses guarded updateMany (PAID → REFUNDED) to prevent double refunds.
- *
- * Also handles the mock-complete endpoint (simulates gateway confirming payment).
+ * Executes gateway refunds outside DB transactions and finalizes `REFUND_PENDING` orders idempotently.
  */
 @Injectable()
 export class RefundService {
@@ -36,13 +23,8 @@ export class RefundService {
   ) {}
 
   /**
-   * Processes a refund for a given payment.
-   * Caller must supply the payment record (from paymentDb.findRefundPendingOrders).
-   * This method is called:
-   *   a) Directly after a cancellation commit (order-cancellation.service.ts post-commit hook)
-   *   b) By the refund retry cron for REFUND_PENDING orders
-   *
-   * Verified against docs: 01 §20, 01 §2.9.
+   * Calls the payment gateway to refund a payment and atomically transitions the order
+   * from `REFUND_PENDING` to `CANCELLED` (`REFUNDED`). Leaves order in `REFUND_PENDING` on failure for cron retry.
    */
   async processRefund(
     orderId: string,
@@ -55,14 +37,12 @@ export class RefundService {
   ): Promise<void> {
     const amountPence = orderTotal.mul(100).toDecimalPlaces(0).toNumber();
 
-    // Call gateway BEFORE DB write so we know the outcome
     let refundSuccess = false;
     try {
       const result = await this.gateway.refundPayment(gatewayRef, amountPence);
       refundSuccess = result.refunded;
     } catch (err) {
       const message = (err as Error).message ?? '';
-      // Idempotent: treat "already refunded" gateway errors as success
       if (
         message.toLowerCase().includes('already refunded') ||
         message.toLowerCase().includes('already_refunded')
@@ -75,7 +55,6 @@ export class RefundService {
         this.logger.error(
           `[RefundService] Gateway refund call failed for order ${orderNumber} (${gatewayRef}): ${message}`,
         );
-        // Leave order as REFUND_PENDING — cron will retry
         return;
       }
     }
@@ -87,7 +66,6 @@ export class RefundService {
       return;
     }
 
-    // Persist refund outcome in DB
     const changed = await this.paymentDb.runInTransaction((tx) =>
       this.paymentDb.processRefundInTx(
         paymentId,
@@ -100,7 +78,6 @@ export class RefundService {
     );
 
     if (!changed) {
-      // Already refunded in DB (concurrent retry) — safe to skip
       this.logger.log(
         `[RefundService] Payment ${paymentId} already REFUNDED in DB — skipping duplicate.`,
       );
@@ -111,7 +88,6 @@ export class RefundService {
       `[RefundService] Refund completed for order ${orderNumber} (payment ${paymentId}).`,
     );
 
-    // Post-commit side effects (fire-and-forget)
     this.notificationService
       .dispatchUserNotification(userId, {
         title: 'Refund Processed',
@@ -132,7 +108,12 @@ export class RefundService {
         action: 'REFUND_COMPLETED',
         actorType: AuditActorType.SYSTEM_TRIGGER,
         actorId: 'SYSTEM',
-        details: { orderId, orderNumber, gatewayRef, amount: orderTotal.toFixed(2) },
+        details: {
+          orderId,
+          orderNumber,
+          gatewayRef,
+          amount: orderTotal.toFixed(2),
+        },
       })
       .catch((err) => {
         this.logger.error(
@@ -141,30 +122,19 @@ export class RefundService {
       });
   }
 
-  /**
-   * Processes the mock-complete action triggered by the customer
-   * via POST /payments/:id/mock-complete { outcome }.
-   *
-   * This simulates the gateway receiving a card and immediately posting a webhook.
-   * The webhook flow is then delegated to PaymentWebhookService.
-   * Returns the payment ID and outcome for the response.
-   *
-   * Verified against docs: api-reference Part 2.
-   */
+  /** Verifies that the payment belongs to the given order before mock-completion. */
   async processMockComplete(
     paymentId: string,
     orderId: string,
     outcome: 'succeeded' | 'failed',
     failureReason?: string,
   ): Promise<{ paymentId: string; orderId: string; outcome: string }> {
-    // Verify ownership: payment must belong to this order
     const payment = await this.paymentDb.findByIdAndOrderId(paymentId, orderId);
 
     if (!payment) {
       throw new NotFoundException('Payment not found.');
     }
 
-    // Return result — the caller (PaymentService) will fire the webhook event
     return { paymentId: payment.id, orderId, outcome };
   }
 }

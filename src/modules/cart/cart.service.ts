@@ -16,11 +16,7 @@ export class CartService {
 
   constructor(private readonly cartDb: CartDbService) {}
 
-  /**
-   * Calculates currently available stock for a product,
-   * taking into account batch tracking and batch expiry dates.
-   * Business logic belongs strictly in the service layer.
-   */
+  /** Computes available stock for a product, accounting for active non-expired batches. */
   private calculateAvailableStock(product: {
     batchTracked: boolean;
     inventory?: {
@@ -54,9 +50,7 @@ export class CartService {
     return Math.max(0, product.inventory.qtyOnHand);
   }
 
-  /**
-   * Evaluates stock availability rules for each item and builds the cart response.
-   */
+  /** Evaluates stock availability for each item and maps the cart response. */
   private mapCartToResponse(cart: CartWithRelations): ICartResponse {
     const stockInfoMap = new Map<string, CartItemStockInfo>();
 
@@ -84,20 +78,13 @@ export class CartService {
     return toCartResponse(cart, stockInfoMap);
   }
 
-  /**
-   * Retrieves the customer's cart. If the user doesn't have a cart yet,
-   * it gets automatically created (get-or-create).
-   */
+  /** Retrieves or creates the customer's cart. */
   async getCart(userId: string): Promise<ICartResponse> {
     const cart = await this.cartDb.findOrCreateCart(userId);
     return this.mapCartToResponse(cart);
   }
 
-  /**
-   * Adds an item to the customer's cart. If the item already exists in the cart,
-   * its quantity is incremented.
-   * Validates active status, visibility, available stock, and order quantity limits.
-   */
+  /** Adds a product to the cart or increments its quantity after validating stock and order limits. */
   async addItem(userId: string, dto: AddToCartDto): Promise<ICartResponse> {
     return this.cartDb.runInTransaction(async (tx) => {
       const cart = await this.cartDb.findOrCreateCart(userId, tx);
@@ -169,11 +156,7 @@ export class CartService {
     });
   }
 
-  /**
-   * Updates the quantity of a specific cart item.
-   * If quantity is 0, the item is removed from the cart.
-   * Validates item ownership and stock / order quantity limits.
-   */
+  /** Updates a cart item's quantity (removes the item when quantity is 0). */
   async updateItem(
     userId: string,
     itemId: string,
@@ -229,11 +212,7 @@ export class CartService {
     });
   }
 
-  /**
-   * Removes an item from the customer's cart.
-   * Atomically deletes the item scoped to user's cart in a single query.
-   * Throws 404 if item not found, not owned, or already deleted by another concurrent request.
-   */
+  /** Removes a cart item owned by the customer (throws 404 if not found). */
   async removeItem(userId: string, itemId: string): Promise<void> {
     const deletedCount = await this.cartDb.deleteCartItemByIdAndUserId(
       itemId,
@@ -244,23 +223,17 @@ export class CartService {
     }
   }
 
-  /**
-   * Clears all items in the customer's cart.
-   */
+  /** Clears all items from the customer's cart. */
   async clearCart(userId: string): Promise<void> {
     await this.cartDb.clearCartByUserId(userId);
   }
 
-  /**
-   * Helper method for OrderModule to read user's cart in a transaction.
-   */
+  /** Reads the customer's cart within an order transaction. */
   async getCartForOrder(userId: string, tx?: Prisma.TransactionClient) {
     return this.cartDb.findCartByUserId(userId, tx);
   }
 
-  /**
-   * Helper method for OrderModule to clear user's cart in a transaction.
-   */
+  /** Clears the customer's cart within an order transaction. */
   async clearCartForOrder(userId: string, tx?: Prisma.TransactionClient) {
     return this.cartDb.clearCartByUserId(userId, tx);
   }

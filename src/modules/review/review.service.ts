@@ -101,13 +101,8 @@ export class ReviewService {
   }
 
   /**
-   * Customer: Submit a verified-purchase review for an order item from a DELIVERED order.
-   *
-   * Rules (Docs 01 §21):
-   * - Order item must belong to the customer's own DELIVERED order -> otherwise 400
-   * - One order item = one review (orderItemId @unique) -> duplicate returns 400
-   * - Rating 1-5 integer, comment <= 1000 chars, starts in PENDING status
-   * - Demotes previous reviews for the same user + product to isLatest = false
+   * Creates a verified-purchase review in `PENDING` status for an order item from the customer's `DELIVERED` order,
+   * rotating `isLatest` across reviews for the same product.
    */
   async create(user: AuthUser, dto: CreateReviewDto): Promise<IReviewResponse> {
     const orderItem = await this.reviewDb.findOrderItemForReview(
@@ -150,7 +145,6 @@ export class ReviewService {
       rating: created.rating,
     });
 
-    // Fire-and-forget admin notification for moderation queue
     const productName = orderItem.product?.name || 'a product';
     this.notificationService
       .dispatchAdminNotification({
@@ -168,9 +162,7 @@ export class ReviewService {
     return toReviewResponse(created);
   }
 
-  /**
-   * Customer: List own reviews with pagination and filters.
-   */
+  /** Lists the customer's own reviews with pagination and filters. */
   async findMyReviews(
     userId: string,
     query: ReviewQueryDto,
@@ -184,11 +176,7 @@ export class ReviewService {
     };
   }
 
-  /**
-   * Public: List approved latest reviews for a product along with rating summary & 1-5 breakdown.
-   * Supports sort options: newest, highest, lowest, and optional star rating filter.
-   * Verified against docs: 01 §21, api-reference.md.
-   */
+  /** Lists public approved latest reviews for a product along with its rating summary and 1..5 breakdown. */
   async findProductReviews(
     productId: string,
     query: ReviewQueryDto,
@@ -208,20 +196,13 @@ export class ReviewService {
     };
   }
 
-  /**
-   * Customer: Get own review detail by ID.
-   * Ownership check: returns 403 if review belongs to another user (Docs 01 §21, 06 §2).
-   */
+  /** Returns a customer's own review detail by ID (throws 403 if owned by another user). */
   async findCustomerOne(id: string, userId: string): Promise<IReviewResponse> {
     const review = await this.getOwnedReviewOrThrow(id, userId);
     return toReviewResponse(review);
   }
 
-  /**
-   * Customer: Edit own review.
-   * Resets status back to PENDING for re-moderation (Docs 01 §21).
-   * Ownership check: returns 403 if review belongs to another user.
-   */
+  /** Updates a customer's own review and resets its status to `PENDING` for re-moderation. */
   async update(
     id: string,
     user: AuthUser,
@@ -254,12 +235,7 @@ export class ReviewService {
     return toReviewResponse(updated);
   }
 
-  /**
-   * Customer: Delete own review.
-   * Ownership check: returns 403 if review belongs to another user.
-   * Promotes previous review for same user + product to isLatest = true if applicable,
-   * and cleans up S3 images after DB commit.
-   */
+  /** Deletes a customer's own review, promotes any previous review to `isLatest = true`, and cleans up S3 images. */
   async removeCustomerReview(id: string, user: AuthUser): Promise<void> {
     const review = await this.getOwnedReviewOrThrow(id, user.id);
 
@@ -273,11 +249,7 @@ export class ReviewService {
     });
   }
 
-  /**
-   * Customer: Upload images for own review (max 5 images per review, unique slots 0..4).
-   * Uploads to S3 first, persists to DB in transaction, and rolls back S3 files on failure.
-   * Verified against docs: 01 §21, 10 §4.
-   */
+  /** Uploads review images to S3 (max 5, slots `0..4`), persists them in DB, and rolls back S3 files on failure. */
   async uploadImages(
     reviewId: string,
     user: AuthUser,
@@ -349,7 +321,6 @@ export class ReviewService {
 
       return toReviewResponse(updated);
     } catch (error) {
-      // Rollback uploaded S3 files on DB or upload failure
       for (const url of uploadedUrls) {
         await this.s3Service.deleteFile(url);
       }
@@ -357,10 +328,7 @@ export class ReviewService {
     }
   }
 
-  /**
-   * Customer: Delete an image from own review.
-   * Ownership check: 403 if review belongs to another user; 404 if review or image not found.
-   */
+  /** Deletes an image from a customer's own review and removes the file from S3. */
   async deleteImage(
     reviewId: string,
     imageId: string,
@@ -374,8 +342,6 @@ export class ReviewService {
     }
 
     await this.reviewDb.deleteImage(imageId);
-
-    // Best-effort S3 file cleanup after DB delete
     await this.s3Service.deleteFile(image.url);
 
     const refreshed = await this.getReviewOrThrow(reviewId);
@@ -398,11 +364,7 @@ export class ReviewService {
     return toReviewResponse(refreshed);
   }
 
-  // --- Admin Moderation Operations ---
-
-  /**
-   * Admin: List all reviews with filters (status, rating, productId, userId, search, sortBy).
-   */
+  /** Lists all reviews for admin moderation with search and filters. */
   async findAdminAll(query: ReviewQueryDto): Promise<IReviewListResponse> {
     const { data, total, page, limit } =
       await this.reviewDb.findAdminReviews(query);
@@ -413,19 +375,13 @@ export class ReviewService {
     };
   }
 
-  /**
-   * Admin: Get single review detail by ID.
-   */
+  /** Returns single review detail by ID for admin view. */
   async findAdminOne(id: string): Promise<IReviewResponse> {
     const review = await this.getReviewOrThrow(id);
     return toReviewResponse(review);
   }
 
-  /**
-   * Admin: Approve or reject a review (and optionally set an admin reply).
-   * Dispatches notification to customer and logs audit event.
-   * Verified against docs: 01 §21.
-   */
+  /** Approves or rejects a review, optionally sets an admin reply, and notifies the customer. */
   async moderateStatus(
     id: string,
     admin: AuthUser,
@@ -459,7 +415,6 @@ export class ReviewService {
       },
     );
 
-    // Fire-and-forget customer notification (Docs 01 §21)
     const productName = review.product?.name || 'your purchased product';
     const isApproved = dto.status === ReviewStatus.APPROVED;
     this.notificationService
@@ -480,11 +435,7 @@ export class ReviewService {
     return toReviewResponse(updated);
   }
 
-  /**
-   * Admin: Add or update reply on a review (max 500 chars).
-   * Dispatches notification to customer and logs audit event.
-   * Verified against docs: 01 §21.
-   */
+  /** Adds or updates an admin reply on a review and notifies the customer. */
   async replyToReview(
     id: string,
     admin: AuthUser,
@@ -502,7 +453,6 @@ export class ReviewService {
       adminReply: dto.adminReply,
     });
 
-    // Notify customer when admin posts a reply (Docs 01 §21)
     const productName = review.product?.name || 'your purchased product';
     this.notificationService
       .dispatchUserNotification(review.userId, {
@@ -520,9 +470,7 @@ export class ReviewService {
     return toReviewResponse(updated);
   }
 
-  /**
-   * Admin: Remove reply on a review (idempotent, sets adminReply to null).
-   */
+  /** Removes the admin reply on a review. */
   async removeAdminReply(id: string, admin: AuthUser): Promise<void> {
     const review = await this.getReviewOrThrow(id);
 
@@ -543,11 +491,7 @@ export class ReviewService {
     );
   }
 
-  /**
-   * Admin: Delete any review.
-   * Promotes previous review for same user + product to isLatest = true if applicable,
-   * cleans up S3 images after commit, and logs audit event.
-   */
+  /** Deletes any review as an admin, promotes any previous review to `isLatest = true`, and cleans up S3 images. */
   async removeAdminReview(id: string, admin: AuthUser): Promise<void> {
     const review = await this.getReviewOrThrow(id);
 

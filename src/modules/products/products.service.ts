@@ -133,7 +133,6 @@ export class ProductsService {
       `Product created: ${created.name} (${created.id}) with SKU ${created.sku}`,
     );
 
-    // Fire-and-forget audit log
     this.auditService
       .log({
         entityType: 'PRODUCT',
@@ -362,7 +361,6 @@ export class ProductsService {
 
     this.logger.log(`Product updated: ${updated.name} (${updated.id})`);
 
-    // Fire-and-forget audit log
     this.auditService
       .log({
         entityType: 'PRODUCT',
@@ -388,7 +386,6 @@ export class ProductsService {
       throw new NotFoundException('Product not found');
     }
 
-    // Check references before deleting
     const refs = await this.productDb.hasReferences(id);
     if (refs.hasOrders || refs.hasCart || refs.hasInventory) {
       throw new ConflictException(
@@ -398,14 +395,12 @@ export class ProductsService {
 
     await this.productDb.delete(id);
 
-    // Clean up images from S3 (best effort) after DB delete
     for (const image of product.images || []) {
       await this.s3Service.deleteFile(image.url);
     }
 
     this.logger.log(`Product deleted: ${product.name} (${product.id})`);
 
-    // Fire-and-forget audit log
     this.auditService
       .log({
         entityType: 'PRODUCT',
@@ -422,8 +417,6 @@ export class ProductsService {
         this.logger.error('Failed to log product delete audit event', err);
       });
   }
-
-  // --- Images Sub-Resource ---
 
   async uploadImages(
     productId: string,
@@ -465,7 +458,6 @@ export class ProductsService {
         });
       }
     } catch (error) {
-      // Rollback uploaded files
       for (const url of uploadedUrls) {
         await this.s3Service.deleteFile(url);
       }
@@ -474,7 +466,6 @@ export class ProductsService {
 
     const refreshed = await this.productDb.findById(productId);
 
-    // Fire-and-forget audit log
     this.auditService
       .log({
         entityType: 'PRODUCT',
@@ -529,7 +520,6 @@ export class ProductsService {
 
     const refreshed = await this.productDb.findById(productId);
 
-    // Fire-and-forget audit log
     this.auditService
       .log({
         entityType: 'PRODUCT',
@@ -566,7 +556,7 @@ export class ProductsService {
     await this.productDb.runInTransaction(async (tx) => {
       await this.productDb.deleteImage(imageId, tx);
 
-      // If deleted image was primary, set another image as primary if available
+      // Promote the next remaining image to primary if the deleted image was primary
       if (image.isPrimary) {
         const remainingImages = await this.productDb.findImagesByProductId(
           productId,
@@ -582,12 +572,10 @@ export class ProductsService {
       }
     });
 
-    // Clean up file from S3 (best effort) after DB commit
     await this.s3Service.deleteFile(image.url);
 
     const refreshed = await this.productDb.findById(productId);
 
-    // Fire-and-forget audit log
     this.auditService
       .log({
         entityType: 'PRODUCT',
@@ -603,8 +591,6 @@ export class ProductsService {
 
     return toAdminProductResponse(refreshed!);
   }
-
-  // --- Allergens Sub-Resource ---
 
   async findAllergens(productId: string) {
     const product = await this.productDb.findById(productId);
@@ -638,7 +624,6 @@ export class ProductsService {
       presence: dto.presence,
     });
 
-    // Fire-and-forget audit log
     this.auditService
       .log({
         entityType: 'PRODUCT',
@@ -669,7 +654,6 @@ export class ProductsService {
 
     await this.productDb.deleteAllergen(allergenId);
 
-    // Fire-and-forget audit log
     this.auditService
       .log({
         entityType: 'PRODUCT',

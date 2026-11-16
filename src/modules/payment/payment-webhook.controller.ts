@@ -13,11 +13,7 @@ import { Public } from '../../common/decorators';
 import { MockWebhookDto } from './dto';
 import { PaymentService } from './payment.service';
 
-/**
- * Handles inbound webhook events from payment gateway (mock / Stripe).
- * Route: POST /webhooks/payments/mock
- * Verified against docs: 01 §16, 05 §8, api-reference Part 2.
- */
+/** Handles signed inbound webhook events from the payment gateway. */
 @SkipThrottle()
 @Public()
 @Controller('webhooks/payments')

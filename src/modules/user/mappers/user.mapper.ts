@@ -10,11 +10,7 @@ import {
 
 export type { UserProfileResponse };
 
-/**
- * Maps a User record to a safe profile response.
- * Never includes `passwordHash` and always strips the `[DELETED] <id>:` prefix from anonymized emails.
- * Verified against docs: 01 §6, 04 §7, 06 §4, 10 §3.
- */
+/** Maps a user entity to `IUserProfileResponse` (excludes `passwordHash` and strips anonymized email prefixes). */
 export function toUserProfileResponse(user: User): IUserProfileResponse {
   return {
     id: user.id,

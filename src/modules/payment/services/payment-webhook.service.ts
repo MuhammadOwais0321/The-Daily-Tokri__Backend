@@ -11,16 +11,7 @@ import { PaymentDbService } from '../payment.db.service';
 import { RefundService } from './refund.service';
 
 /**
- * Handles all inbound webhook events from the payment gateway.
- *
- * Rules (Docs 01 §16):
- * - payment_intent.succeeded  → UNPAID/FAILED → PAID; order PENDING → CONFIRMED;
- *   user totalOrders++, totalSpent += total; if order was already CANCELLED (late payment) → auto-refund
- * - payment_intent.failed     → UNPAID → FAILED; order stays PENDING (customer can retry)
- * - payment_intent.canceled   → UNPAID → CANCELED
- *
- * All handlers are guarded (WHERE status = expected) so duplicate webhook delivery
- * never double-counts stats. Verified against docs: 01 §16, 11 §2.
+ * Processes inbound payment gateway webhook events using guarded status updates for idempotency.
  */
 @Injectable()
 export class PaymentWebhookService {
@@ -34,11 +25,10 @@ export class PaymentWebhookService {
   ) {}
 
   /**
-   * Handles payment_intent.succeeded webhook event.
-   * Uses RepeatableRead-equivalent guarded updateMany to prevent double-credit.
+   * Handles `payment_intent.succeeded`: confirms `PENDING` orders, increments user stats,
+   * or queues an automatic refund if the order was already cancelled by timeout.
    */
   async handlePaymentSucceeded(gatewayRef: string): Promise<void> {
-    // Look up payment record first
     const payment = await this.paymentDb.findByGatewayRef(gatewayRef);
 
     if (!payment) {
@@ -56,23 +46,26 @@ export class PaymentWebhookService {
         await this.paymentDb.confirmPaymentInTx(gatewayRef, tx);
 
       if (!updated) {
-        // Already processed — idempotent skip
         this.logger.log(
           `[Webhook] payment_intent.succeeded (${gatewayRef}): already processed — skipping.`,
         );
         return;
       }
 
-      // Check current order status (may have been CANCELLED by timeout)
       const currentOrder = await tx.order.findUnique({
         where: { id: order.id },
-        select: { id: true, status: true, userId: true, total: true, orderNumber: true },
+        select: {
+          id: true,
+          status: true,
+          userId: true,
+          total: true,
+          orderNumber: true,
+        },
       });
 
       if (!currentOrder) return;
 
       if (currentOrder.status === OrderStatus.PENDING) {
-        // Normal path: confirm order
         await tx.order.update({
           where: { id: currentOrder.id },
           data: {
@@ -82,7 +75,6 @@ export class PaymentWebhookService {
           },
         });
 
-        // Increment user stats: totalOrders + 1, totalSpent += order.total
         await tx.user.update({
           where: { id: currentOrder.userId },
           data: {
@@ -95,9 +87,7 @@ export class PaymentWebhookService {
           `[Webhook] Order ${currentOrder.orderNumber} confirmed (payment ${updatedPayment?.id}).`,
         );
       } else if (currentOrder.status === OrderStatus.CANCELLED) {
-        // Late payment: order already cancelled by timeout.
-        // Mark payment PAID already done; now trigger auto-refund (after-commit).
-        // We set order to REFUND_PENDING so the RefundService picks it up.
+        // Late payment arrived after timeout cancellation; mark REFUND_PENDING for auto-refund
         await tx.order.updateMany({
           where: { id: currentOrder.id, status: OrderStatus.CANCELLED },
           data: {
@@ -111,10 +101,8 @@ export class PaymentWebhookService {
           `[Webhook] Late payment detected for cancelled order ${currentOrder.orderNumber} — set to REFUND_PENDING for auto-refund.`,
         );
       }
-      // Other statuses (CONFIRMED, DELIVERED, etc.) — payment already PAID, nothing to do
     });
 
-    // If late payment, trigger automatic refund immediately post-commit (Docs 01 §16)
     if (isLatePayment) {
       this.refundService
         .processRefund(
@@ -133,7 +121,6 @@ export class PaymentWebhookService {
         });
     }
 
-    // Post-commit notifications (fire-and-forget)
     this.notificationService
       .dispatchUserNotification(order.userId, {
         title: 'Payment Confirmed',
@@ -167,7 +154,11 @@ export class PaymentWebhookService {
         action: 'PAYMENT_SUCCEEDED',
         actorType: AuditActorType.SYSTEM_TRIGGER,
         actorId: 'SYSTEM',
-        details: { gatewayRef, orderId: order.id, orderNumber: order.orderNumber },
+        details: {
+          gatewayRef,
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+        },
       })
       .catch((err) => {
         this.logger.error(
@@ -176,11 +167,7 @@ export class PaymentWebhookService {
       });
   }
 
-  /**
-   * Handles payment_intent.payment_failed webhook event.
-   * Order stays PENDING — customer can retry payment (another initiate call).
-   * Verified against docs: 01 §16.
-   */
+  /** Marks payment `FAILED` while keeping the order `PENDING` so the customer can retry. */
   async handlePaymentFailed(
     gatewayRef: string,
     failureReason?: string,
@@ -210,7 +197,6 @@ export class PaymentWebhookService {
       `[Webhook] Payment ${payment.id} (${gatewayRef}) marked FAILED for order ${payment.order.orderNumber}.`,
     );
 
-    // Notify customer so they can retry
     this.notificationService
       .dispatchUserNotification(payment.order.userId, {
         title: 'Payment Failed',
@@ -225,11 +211,7 @@ export class PaymentWebhookService {
       });
   }
 
-  /**
-   * Handles payment_intent.canceled webhook event.
-   * Marks payment CANCELED (from UNPAID).
-   * Verified against docs: 01 §16.
-   */
+  /** Marks an `UNPAID` payment as `CANCELED`. */
   async handlePaymentCanceled(gatewayRef: string): Promise<void> {
     const payment = await this.paymentDb.findByGatewayRef(gatewayRef);
 
@@ -255,13 +237,7 @@ export class PaymentWebhookService {
   }
 
   /**
-   * Handles charge.refunded webhook event.
-   *
-   * Rules (Docs 01 §16):
-   * - Full refund only (partial → skip + log warning for manual review).
-   * - Guarded status update: payment PAID → REFUNDED, order REFUND_PENDING → CANCELLED,
-   *   paymentStatus REFUNDED, totalSpent -= total.
-   * - Idempotent: already refunded payments are skipped safely.
+   * Handles `charge.refunded` for full refunds on `REFUND_PENDING` orders.
    */
   async handleChargeRefunded(
     gatewayRef: string,
@@ -285,20 +261,11 @@ export class PaymentWebhookService {
 
     const order = payment.order;
 
-    // Guard: only process automated refund when order is in REFUND_PENDING state.
-    // If admin manually triggered a refund from Stripe dashboard while the order is still
-    // CONFIRMED/PROCESSING/etc. (bypassing our cancel API), we must NOT auto-cancel the
-    // order or decrement totalSpent — that would leave the order in an inconsistent state
-    // (active order with no payment to collect). Flag it for manual review instead.
-    // Docs 01 §16: "charge.refunded → REFUND_PENDING → CANCELLED"; the REFUND_PENDING
-    // precondition is implied by the normal flow but must be enforced explicitly here
-    // to guard against out-of-band Stripe dashboard refunds.
+    // Only auto-finalize refunds for orders in REFUND_PENDING state; flag out-of-band refunds for manual review
     if (order.status !== 'REFUND_PENDING') {
       this.logger.warn(
         `[Webhook] charge.refunded (${gatewayRef}): order ${order.orderNumber} is in status ` +
-          `"${order.status}" (expected REFUND_PENDING). This refund was likely triggered manually ` +
-          `from the Stripe dashboard, bypassing the cancel API. ` +
-          `Payment has been marked PAID by gateway — manual review required to reconcile order status and totalSpent.`,
+          `"${order.status}" (expected REFUND_PENDING). Manual review required.`,
       );
       return;
     }
@@ -306,10 +273,10 @@ export class PaymentWebhookService {
     const orderTotal = new Prisma.Decimal(order.total);
     const orderTotalPence = orderTotal.mul(100).toDecimalPlaces(0).toNumber();
 
-    // Partial refund check per Docs 01 §16: automated processing only for full refunds
+    // Skip partial refunds for manual review
     if (amountPence !== undefined && amountPence < orderTotalPence) {
       this.logger.warn(
-        `[Webhook] charge.refunded (${gatewayRef}): partial refund received (${amountPence} < ${orderTotalPence} pence). Skipped for manual review per Docs 01 §16.`,
+        `[Webhook] charge.refunded (${gatewayRef}): partial refund received (${amountPence} < ${orderTotalPence} pence). Skipped for manual review.`,
       );
       return;
     }
@@ -336,7 +303,6 @@ export class PaymentWebhookService {
       `[Webhook] charge.refunded: payment ${payment.id} marked REFUNDED and order ${order.orderNumber} CANCELLED.`,
     );
 
-    // Post-commit side effects (fire-and-forget)
     this.notificationService
       .dispatchUserNotification(order.userId, {
         title: 'Refund Processed',

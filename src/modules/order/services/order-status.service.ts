@@ -30,17 +30,7 @@ export class OrderStatusService {
   ) {}
 
   /**
-   * Advances the order through fulfillment states (Admin only).
-   * Verified against docs: 01 §19.
-   *
-   * Rules:
-   * - Transition to CANCELLED must use the /cancel endpoint -> 400
-   * - Transition must follow ADMIN_ALLOWED_TRANSITIONS map -> 400
-   * - READY_FOR_PICKUP only allowed for PICKUP orders -> 400
-   * - READY_FOR_DELIVERY only allowed for DELIVERY orders -> 400
-   * - Optimistic concurrency guarded update WHERE id AND status = currentStatus -> 409
-   * - Records appropriate timestamp (processedAt, readyAt, deliveredAt)
-   * - Dispatches notification to customer on status change (fire-and-forget)
+   * Advances an order through admin fulfillment states using a guarded status update (`409` on concurrent change).
    */
   async updateStatus(
     orderId: string,
@@ -114,7 +104,6 @@ export class OrderStatusService {
       `Order ${order.orderNumber} status updated: ${order.status} -> ${dto.status} by admin ${admin.email}`,
     );
 
-    // Audit log (fire-and-forget)
     this.auditService
       .log({
         entityType: 'ORDER',
@@ -134,7 +123,6 @@ export class OrderStatusService {
         );
       });
 
-    // Notify customer about status transition (fire-and-forget, docs 01 §19)
     this.notificationService
       .dispatchUserNotification(order.userId, {
         title: 'Order Status Update',

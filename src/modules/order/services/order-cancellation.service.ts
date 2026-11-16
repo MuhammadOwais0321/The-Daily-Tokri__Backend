@@ -40,11 +40,7 @@ export class OrderCancellationService {
     private readonly refundService: RefundService,
   ) {}
 
-  /**
-   * Customer cancels their own order.
-   * Can only cancel PENDING or CONFIRMED orders.
-   * Scoped strictly by { id, userId } (IDOR protection).
-   */
+  /** Cancels a customer's own order (permitted when `PENDING` or `CONFIRMED`). */
   async cancelCustomerOrder(
     orderId: string,
     user: AuthUser,
@@ -83,11 +79,7 @@ export class OrderCancellationService {
     return toOrderResponse(cancelled);
   }
 
-  /**
-   * Admin cancels an order.
-   * Can cancel orders at any pre-delivery stage.
-   * If paid, sets status to REFUND_PENDING for subsequent refund processing.
-   */
+  /** Cancels an order at any pre-delivery stage on behalf of an admin. */
   async cancelAdminOrder(
     orderId: string,
     admin: AuthUser,
@@ -134,10 +126,7 @@ export class OrderCancellationService {
     return toOrderResponse(cancelled);
   }
 
-  /**
-   * System-triggered cancellation for expired unpaid orders (Payment Timeout).
-   * Verified against docs: 01 §17.
-   */
+  /** Auto-cancels an expired unpaid `PENDING` order and restores stock. */
   async cancelSystemTimeoutOrder(order: OrderWithRelations): Promise<void> {
     await this._cancelOrderInTx(
       order,
@@ -149,16 +138,8 @@ export class OrderCancellationService {
   }
 
   /**
-   * Shared atomic cancellation workflow for Customer, Admin, and System.
-   * Verified against docs: 01 §18, 01 §20 (_cancelOrderInTx).
-   *
-   * 1. Status guard: if order.paymentStatus === PAID -> REFUND_PENDING, user.totalOrders - 1
-   *    If unpaid -> CANCELLED
-   * 2. Stock restore: reads CONSUMED transactions
-   *    - Restores active non-expired batches (skips expired batches to prevent spoiled inventory)
-   *    - Restores aggregate inventory.qtyOnHand matching actually restored batches
-   *    - Creates RELEASED inventory ledger entries
-   *    - Refreshes inventory status
+   * Atomically transitions the order to `CANCELLED` (or `REFUND_PENDING` if paid),
+   * restores non-expired batch/inventory stock, and triggers post-commit refund/notifications.
    */
   private async _cancelOrderInTx(
     order: OrderWithRelations,
@@ -173,7 +154,6 @@ export class OrderCancellationService {
       : OrderStatus.CANCELLED;
 
     const refreshedOrder = await this.orderDb.runInTransaction(async (tx) => {
-      // 1. Guarded update on order status
       const updateResult = await tx.order.updateMany({
         where: {
           id: order.id,
@@ -193,7 +173,6 @@ export class OrderCancellationService {
         );
       }
 
-      // 2. If order was paid, decrement user totalOrders stat
       if (isPaid) {
         await tx.user.update({
           where: { id: order.userId },
@@ -203,7 +182,6 @@ export class OrderCancellationService {
         });
       }
 
-      // 3. Stock restore: find all CONSUMED transactions for this order's items
       const orderItemIds = order.items.map((i) => i.id);
       const consumedTransactions = await tx.inventoryTransaction.findMany({
         where: {
@@ -231,7 +209,6 @@ export class OrderCancellationService {
         const isBatchTracked = txn.inventory.product.batchTracked;
 
         if (isBatchTracked) {
-          // Parse batch allocation info stored in the note
           let parsedAllocations: Array<{
             batchId: string;
             batchCode: string;
@@ -253,7 +230,7 @@ export class OrderCancellationService {
             parsedAllocations = [];
           }
 
-          // Restore into non-expired batches
+          // Restore stock only into non-expired batches
           let restoredBatchQuantity = 0;
           for (const alloc of parsedAllocations) {
             const batch = await tx.inventoryBatch.findUnique({
@@ -282,7 +259,6 @@ export class OrderCancellationService {
             }
           }
 
-          // Restore aggregate inventory.qtyOnHand only for valid restored quantity (Docs 01 §12 Q7 fix)
           if (restoredBatchQuantity > 0) {
             await tx.inventory.update({
               where: { id: txn.inventoryId },
@@ -290,14 +266,12 @@ export class OrderCancellationService {
             });
           }
         } else {
-          // Non-batch inventory restore
           await tx.inventory.update({
             where: { id: txn.inventoryId },
             data: { qtyOnHand: { increment: txn.quantity } },
           });
         }
 
-        // Create RELEASED inventory transaction ledger entry
         await tx.inventoryTransaction.create({
           data: {
             inventoryId: txn.inventoryId,
@@ -309,11 +283,9 @@ export class OrderCancellationService {
           },
         });
 
-        // Refresh stock status
         await this.inventoryDb.refreshInventoryStatus(txn.inventoryId, tx);
       }
 
-      // Fetch refreshed order
       const complete = await tx.order.findUnique({
         where: { id: order.id },
         include: this.orderDb.orderInclude,
@@ -322,16 +294,12 @@ export class OrderCancellationService {
       return complete!;
     });
 
-    // 4. Post-commit side effects (fire-and-forget)
     this.logger.log(
       `Order ${refreshedOrder.orderNumber} (${refreshedOrder.id}) cancelled (${refreshedOrder.status}) by ${actorType} ${actorId}`,
     );
 
-    // If the order was paid and is now REFUND_PENDING, trigger the gateway refund immediately
-    // after DB commit (Docs 01 §20, 01 §2.9). The refund retry cron (@every 5 min) acts as
-    // the backstop if this call fails — do NOT await, never block the response.
+    // Trigger post-commit gateway refund for paid orders (RefundRetryCron retries if this fails)
     if (refreshedOrder.status === OrderStatus.REFUND_PENDING) {
-      // payments already loaded via orderInclude (desc createdAt) — no extra query needed
       const paidPayment = refreshedOrder.payments.find(
         (p) => p.status === PaymentStatus.PAID,
       );
@@ -361,7 +329,6 @@ export class OrderCancellationService {
       }
     }
 
-    // Audit log
     this.auditService
       .log({
         entityType: 'ORDER',
@@ -383,7 +350,6 @@ export class OrderCancellationService {
         );
       });
 
-    // In-app notifications: notify customer
     this.notificationService
       .dispatchUserNotification(refreshedOrder.userId, {
         title: 'Order Cancelled',
@@ -397,7 +363,6 @@ export class OrderCancellationService {
         );
       });
 
-    // If cancelled by customer or system, also notify store admins
     if (actorType !== AuditActorType.ADMIN) {
       this.notificationService
         .dispatchAdminNotification({

@@ -28,11 +28,7 @@ import 'multer';
 export class ReviewController {
   constructor(private readonly reviewService: ReviewService) {}
 
-  /**
-   * Customer: List own reviews with pagination and filters.
-   * Placed before :id to prevent route shadowing.
-   * GET /reviews/my
-   */
+  /** List customer's own reviews (declared before `:id` to prevent route shadowing). */
   @SkipThrottle()
   @Roles(UserRole.CUSTOMER)
   @Get('my')
@@ -43,11 +39,7 @@ export class ReviewController {
     return this.reviewService.findMyReviews(userId, query);
   }
 
-  /**
-   * Public: List approved latest reviews for a product with rating summary & 1-5 breakdown.
-   * Placed before :id to prevent route shadowing.
-   * GET /reviews/product/:productId
-   */
+  /** Public approved latest reviews for a product with rating summary (declared before `:id`). */
   @SkipThrottle()
   @Public()
   @Get('product/:productId')
@@ -58,10 +50,7 @@ export class ReviewController {
     return this.reviewService.findProductReviews(productId, query);
   }
 
-  /**
-   * Customer: Submit a verified-purchase review for an order item from a DELIVERED order.
-   * POST /reviews
-   */
+  /** Submit a verified-purchase review for an item from a `DELIVERED` order. */
   @Throttle(RATE_LIMITS.REVIEW)
   @Roles(UserRole.CUSTOMER)
   @Post()
@@ -70,10 +59,7 @@ export class ReviewController {
     return this.reviewService.create(user, dto);
   }
 
-  /**
-   * Customer: Get own review detail by UUID.
-   * GET /reviews/:id
-   */
+  /** Get customer's own review detail by UUID. */
   @SkipThrottle()
   @Roles(UserRole.CUSTOMER)
   @Get(':id')
@@ -84,10 +70,7 @@ export class ReviewController {
     return this.reviewService.findCustomerOne(id, userId);
   }
 
-  /**
-   * Customer: Update own review (resets status to PENDING for re-moderation).
-   * PATCH /reviews/:id
-   */
+  /** Update customer's own review (resets status to `PENDING` for re-moderation). */
   @Throttle(RATE_LIMITS.REVIEW)
   @Roles(UserRole.CUSTOMER)
   @Patch(':id')
@@ -99,10 +82,7 @@ export class ReviewController {
     return this.reviewService.update(id, user, dto);
   }
 
-  /**
-   * Customer: Delete own review.
-   * DELETE /reviews/:id
-   */
+  /** Delete customer's own review. */
   @Throttle(RATE_LIMITS.REVIEW)
   @Roles(UserRole.CUSTOMER)
   @Delete(':id')
@@ -114,10 +94,7 @@ export class ReviewController {
     return this.reviewService.removeCustomerReview(id, user);
   }
 
-  /**
-   * Customer: Upload images for own review (max 5 images, magic bytes verified).
-   * POST /reviews/:id/images
-   */
+  /** Upload images for customer's own review (max 5 images). */
   @Throttle(RATE_LIMITS.REVIEW)
   @Roles(UserRole.CUSTOMER)
   @Post(':id/images')
@@ -131,10 +108,7 @@ export class ReviewController {
     return this.reviewService.uploadImages(id, user, files);
   }
 
-  /**
-   * Customer: Delete an image from own review.
-   * DELETE /reviews/:id/images/:imageId
-   */
+  /** Delete an image from customer's own review. */
   @Throttle(RATE_LIMITS.REVIEW)
   @Roles(UserRole.CUSTOMER)
   @Delete(':id/images/:imageId')

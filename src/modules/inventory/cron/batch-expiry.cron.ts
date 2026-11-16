@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InventoryService } from '../inventory.service';
 
+/** Scheduled job that expires past-due inventory batches every 5 minutes. */
 @Injectable()
 export class BatchExpiryCron {
   private readonly logger = new Logger(BatchExpiryCron.name);

@@ -38,19 +38,8 @@ export class OrderCreationService {
   ) {}
 
   /**
-   * Places an order for the authenticated customer.
-   * Runs as a single atomic transaction:
-   * 1. Validates delivery options and resolves address
-   * 2. Reads cart and verifies product availability
-   * 3. Sorts items by productId ASC (deadlock prevention)
-   * 4. Locks inventory/batch rows with SELECT ... FOR UPDATE
-   * 5. Deducts stock (FEFO for batch-tracked items)
-   * 6. Locks prices from server records (ignores client values)
-   * 7. Generates order number from PostgreSQL sequence 'order_number_seq'
-   * 8. Inserts Order, OrderItems, OrderAddress, and CONSUMED ledger entries
-   * 9. Refreshes inventory status and clears cart
-   *
-   * Verified against docs: 01 §14, 03 §3, 04 §4.
+   * Places an order atomically: locks inventory in deterministic `productId` order,
+   * deducts stock (FEFO for batch-tracked items), snapshots server prices, and clears the cart.
    */
   async createOrder(
     user: AuthUser,
@@ -58,7 +47,6 @@ export class OrderCreationService {
   ): Promise<IOrderResponse> {
     const userId = user.id;
 
-    // 1. Validate delivery type and resolve address
     let resolvedAddress: {
       addressLine: string;
       city: string;
@@ -121,16 +109,13 @@ export class OrderCreationService {
       }
     }
 
-    // 2. Execute entire order creation within an interactive transaction
     const createdOrder = await this.orderDb.runInTransaction(async (tx) => {
-      // a. Read cart via CartService helper
       const cart = await this.cartService.getCartForOrder(userId, tx);
 
       if (!cart || !cart.items || cart.items.length === 0) {
         throw new BadRequestException('Cart is empty. Cannot create order.');
       }
 
-      // b. Check product visibility and order quantity bounds
       for (const item of cart.items) {
         const product = item.product;
         if (!product.isActive || !product.isVisible) {
@@ -149,12 +134,11 @@ export class OrderCreationService {
         }
       }
 
-      // c. Deadlock prevention: sort items deterministically by productId ASC
+      // Sort by productId ASC to acquire row locks in a deterministic order and prevent deadlocks
       const sortedItems = [...cart.items].sort((a, b) =>
         a.productId.localeCompare(b.productId),
       );
 
-      // d. Lock and verify stock for each item
       const itemAllocationsMap = new Map<
         string,
         Array<{ batchId: string; batchCode: string; quantity: number }> | null
@@ -167,7 +151,6 @@ export class OrderCreationService {
       for (const item of sortedItems) {
         const product = item.product;
 
-        // Lock inventory row
         await this.orderDb.lockInventoryByProductId(item.productId, tx);
 
         const inventory = await tx.inventory.findUnique({
@@ -183,7 +166,7 @@ export class OrderCreationService {
         itemInventoryMap.set(item.productId, { id: inventory.id });
 
         if (product.batchTracked) {
-          // Fetch ACTIVE, non-expired batches sorted by expiryDate ASC (FEFO)
+          // Allocate from earliest-expiring active batches first (FEFO)
           const batches = await tx.inventoryBatch.findMany({
             where: {
               inventoryId: inventory.id,
@@ -205,12 +188,10 @@ export class OrderCreationService {
             );
           }
 
-          // Lock batch rows
           for (const batch of batches) {
             await this.orderDb.lockBatchById(batch.id, tx);
           }
 
-          // Deduct from batches using FEFO
           let remainingToDeduct = item.quantity;
           const allocations: Array<{
             batchId: string;
@@ -242,7 +223,6 @@ export class OrderCreationService {
             remainingToDeduct -= deduct;
           }
 
-          // Deduct from aggregate inventory
           await tx.inventory.update({
             where: { id: inventory.id },
             data: { qtyOnHand: { decrement: item.quantity } },
@@ -250,7 +230,6 @@ export class OrderCreationService {
 
           itemAllocationsMap.set(item.productId, allocations);
         } else {
-          // Non-batch product
           if (inventory.qtyOnHand < item.quantity) {
             throw new BadRequestException(
               `Not enough stock for "${product.name}". Requested: ${item.quantity}, Available: ${inventory.qtyOnHand}.`,
@@ -266,7 +245,7 @@ export class OrderCreationService {
         }
       }
 
-      // e. Lock prices from server records and compute financial totals
+      // Snapshot server-side unit prices and compute order totals
       let subtotalDecimal = new Prisma.Decimal(0);
       const orderItemsToCreate = sortedItems.map((item) => {
         const unitPrice = new Prisma.Decimal(item.product.price);
@@ -284,13 +263,9 @@ export class OrderCreationService {
       const shippingCostDecimal = new Prisma.Decimal(0);
       const totalDecimal = subtotalDecimal.add(shippingCostDecimal);
 
-      // f. Generate unique order number from sequence
       const orderNumber = await this.orderDb.generateOrderNumber(tx);
-
-      // g. Set payment expiration to now + 5 minutes
       const paymentExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-      // h. Create Order, OrderItems, and OrderAddress in DB
       const order = await tx.order.create({
         data: {
           orderNumber,
@@ -328,7 +303,6 @@ export class OrderCreationService {
         },
       });
 
-      // i. Record CONSUMED inventory transactions for each order item and refresh status
       for (const createdItem of order.items) {
         const allocations = itemAllocationsMap.get(createdItem.productId);
         const inv = itemInventoryMap.get(createdItem.productId)!;
@@ -351,10 +325,8 @@ export class OrderCreationService {
         await this.inventoryDb.refreshInventoryStatus(inv.id, tx);
       }
 
-      // j. Clear user's cart items via CartService helper
       await this.cartService.clearCartForOrder(userId, tx);
 
-      // k. Fetch complete order record with relations for response (including batchAllocations)
       const completeOrder = await tx.order.findUnique({
         where: { id: order.id },
         include: this.orderDb.orderDetailInclude,
@@ -363,12 +335,10 @@ export class OrderCreationService {
       return completeOrder!;
     });
 
-    // 3. Post-commit side effects (fire-and-forget)
     this.logger.log(
       `Order placed successfully: ${createdOrder.orderNumber} (${createdOrder.id}) for user ${user.email}`,
     );
 
-    // Audit log
     this.auditService
       .log({
         entityType: 'ORDER',
@@ -389,7 +359,6 @@ export class OrderCreationService {
         );
       });
 
-    // Notify admins about new order (fire-and-forget, docs 01 §14)
     this.notificationService
       .dispatchAdminNotification({
         title: 'New Order Received',

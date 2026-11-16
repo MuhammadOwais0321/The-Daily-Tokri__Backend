@@ -12,11 +12,7 @@ export class DashboardService {
     private readonly periodService: DashboardPeriodService,
   ) {}
 
-  /**
-   * Admin: Compute read-only dashboard KPIs, order status breakdown, and store snapshot
-   * for the requested period with previous-period comparison.
-   * Verified against docs: 01 §22.5, 11 §5.
-   */
+  /** Computes dashboard KPIs, period comparisons, and store breakdowns. */
   async getDashboard(query: DashboardQueryDto): Promise<IDashboardResponse> {
     const range = this.periodService.resolvePeriodRange(
       query.period ?? 'today',
@@ -33,10 +29,7 @@ export class DashboardService {
     );
   }
 
-  /**
-   * Admin: Export dashboard KPIs and breakdowns as CSV for the requested period.
-   * Verified against docs: 01 §22.5, api-reference.md.
-   */
+  /** Exports dashboard KPIs and breakdowns as CSV for the requested period. */
   async exportDashboard(
     query: DashboardQueryDto,
   ): Promise<{ filename: string; csv: string }> {

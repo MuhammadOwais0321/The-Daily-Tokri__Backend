@@ -10,10 +10,7 @@ import type { IHealthResponse } from './types';
 export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
-  /**
-   * Public liveness check endpoint.
-   * GET /health
-   */
+  /** Public liveness check endpoint. */
   @Get()
   check(): IHealthResponse {
     return this.healthService.check();

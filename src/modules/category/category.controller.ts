@@ -8,34 +8,25 @@ import { Public } from '../../common/decorators';
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
-  /**
-   * Public category tree (always active categories only)
-   */
+  /** Public category hierarchy tree (active categories only). */
   @Get('tree')
   getTree() {
     return this.categoryService.findAll({ tree: true }, true);
   }
 
-  /**
-   * Static route: Lookup by slug
-   * Placed before :id to prevent route shadowing
-   */
+  /** Lookup category by slug (declared before `:id` to prevent route shadowing). */
   @Get('slug/:slug')
   findBySlug(@Param('slug') slug: string) {
     return this.categoryService.findBySlug(slug, true);
   }
 
-  /**
-   * Public catalog category list (active categories only)
-   */
+  /** Public catalog category list (active categories only). */
   @Get()
   findAll(@Query() query: CategoryQueryDto) {
     return this.categoryService.findAll(query, true);
   }
 
-  /**
-   * Public category detail by UUID
-   */
+  /** Public category detail by UUID. */
   @Get(':id')
   findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.categoryService.findOne(id, true);

@@ -4,15 +4,7 @@ import { PaymentDbService } from '../payment.db.service';
 import { RefundService } from '../services/refund.service';
 
 /**
- * Runs every 5 minutes and retries refunds for orders stuck in REFUND_PENDING.
- *
- * This handles the case where:
- *   a) The post-commit gateway refund call failed (network blip, gateway down)
- *   b) The refund call was never reached (process crash after DB commit)
- *   c) A late payment succeeded on a cancelled order → auto-refund path
- *
- * Idempotency is guaranteed by processRefundInTx's guarded updateMany (PAID → REFUNDED).
- * Verified against docs: 01 §20, 11 §6.
+ * Scheduled job (every 5 minutes) that retries refunds for orders in `REFUND_PENDING` status.
  */
 @Injectable()
 export class RefundRetryCron {
@@ -23,9 +15,11 @@ export class RefundRetryCron {
     private readonly refundService: RefundService,
   ) {}
 
-  @Cron('*/5 * * * *') // Every 5 minutes
+  @Cron('*/5 * * * *')
   async handleRefundRetry(): Promise<void> {
-    let pendingOrders: Awaited<ReturnType<PaymentDbService['findRefundPendingOrders']>>;
+    let pendingOrders: Awaited<
+      ReturnType<PaymentDbService['findRefundPendingOrders']>
+    >;
 
     try {
       pendingOrders = await this.paymentDb.findRefundPendingOrders(20);

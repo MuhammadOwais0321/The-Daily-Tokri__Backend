@@ -8,26 +8,19 @@ import { Public } from '../../common/decorators';
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
-  /**
-   * Static route: Lookup product by slug
-   * Placed before :id to prevent route shadowing
-   */
+  /** Lookup product by slug (declared before `:id` to prevent route shadowing). */
   @Get('slug/:slug')
   findBySlug(@Param('slug') slug: string) {
     return this.productsService.findBySlug(slug, true);
   }
 
-  /**
-   * Public catalog product listing (active and visible products only)
-   */
+  /** Public catalog product listing (active and visible products only). */
   @Get()
   findAll(@Query() query: ListProductsQueryDto) {
     return this.productsService.findAll(query, true);
   }
 
-  /**
-   * Public product detail by UUID (active and visible products only)
-   */
+  /** Public product detail by UUID (active and visible products only). */
   @Get(':id')
   findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.productsService.findOne(id, true);

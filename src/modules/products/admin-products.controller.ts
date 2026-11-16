@@ -34,25 +34,19 @@ import 'multer';
 export class AdminProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
-  /**
-   * Admin: List all products (includes inactive/invisible products)
-   */
+  /** List all products (including inactive/invisible products). */
   @Get()
   findAll(@Query() query: ListProductsQueryDto) {
     return this.productsService.findAll(query, false);
   }
 
-  /**
-   * Admin: Product detail by UUID (accessible even if inactive)
-   */
+  /** Product detail by UUID (including inactive products). */
   @Get(':id')
   findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.productsService.findOne(id, false);
   }
 
-  /**
-   * Admin: Create product
-   */
+  /** Create product. */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -63,9 +57,7 @@ export class AdminProductsController {
     return this.productsService.create(createProductDto, adminId);
   }
 
-  /**
-   * Admin: Update product details
-   */
+  /** Update product details. */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Patch(':id')
   update(
@@ -76,9 +68,7 @@ export class AdminProductsController {
     return this.productsService.update(id, updateProductDto, adminId);
   }
 
-  /**
-   * Admin: Delete product
-   */
+  /** Delete product. */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -89,11 +79,7 @@ export class AdminProductsController {
     return this.productsService.remove(id, adminId);
   }
 
-  // --- Product Images ---
-
-  /**
-   * Admin: Upload product images (max 3 per product)
-   */
+  /** Upload product images (max 3 per product). */
   @Throttle(RATE_LIMITS.ADMIN_IMAGE_UPLOAD)
   @Post(':id/images')
   @UseInterceptors(FilesInterceptor('images', 3))
@@ -108,9 +94,7 @@ export class AdminProductsController {
     return this.productsService.uploadImages(id, files, primaryIdx, adminId);
   }
 
-  /**
-   * Admin: Update image metadata (altText, sortOrder, isPrimary)
-   */
+  /** Update image metadata (`altText`, `sortOrder`, `isPrimary`). */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Patch(':id/images/:imageId')
   updateImage(
@@ -122,9 +106,7 @@ export class AdminProductsController {
     return this.productsService.updateImage(id, imageId, dto, adminId);
   }
 
-  /**
-   * Admin: Delete product image
-   */
+  /** Delete product image. */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Delete(':id/images/:imageId')
   deleteImage(
@@ -135,19 +117,13 @@ export class AdminProductsController {
     return this.productsService.deleteImage(id, imageId, adminId);
   }
 
-  // --- Product Allergens ---
-
-  /**
-   * Admin: List allergens for product
-   */
+  /** List allergens for product. */
   @Get(':id/allergens')
   getAllergens(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.productsService.findAllergens(id);
   }
 
-  /**
-   * Admin: Declare allergen for product
-   */
+  /** Declare allergen for product. */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Post(':id/allergens')
   @HttpCode(HttpStatus.CREATED)
@@ -159,9 +135,7 @@ export class AdminProductsController {
     return this.productsService.addAllergen(id, dto, adminId);
   }
 
-  /**
-   * Admin: Remove allergen declaration
-   */
+  /** Remove allergen declaration. */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Delete(':id/allergens/:allergenId')
   @HttpCode(HttpStatus.NO_CONTENT)

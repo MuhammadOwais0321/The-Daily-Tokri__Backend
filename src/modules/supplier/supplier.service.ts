@@ -78,11 +78,7 @@ export class SupplierService {
       });
   }
 
-  /**
-   * Admin: Create a new supplier.
-   * Enforces global email & phone uniqueness (409 on conflict).
-   * Verified against docs: 01 §22.2, 03 §1.
-   */
+  /** Creates a new supplier and enforces email/phone uniqueness. */
   async create(dto: CreateSupplierDto, adminId?: string): Promise<ISupplier> {
     await this.ensureUniqueEmailAndPhone(dto.email, dto.phone);
 
@@ -107,9 +103,7 @@ export class SupplierService {
     return toSupplierResponse(created);
   }
 
-  /**
-   * Admin: Paginated supplier list with search and isActive filters.
-   */
+  /** Returns a paginated supplier list with search and active status filters. */
   async findAll(query: SupplierQueryDto): Promise<ISupplierListResponse> {
     const { data, total, page, limit } = await this.supplierDb.findMany(query);
 
@@ -119,18 +113,13 @@ export class SupplierService {
     };
   }
 
-  /**
-   * Admin: Get supplier detail by ID.
-   */
+  /** Returns supplier detail by ID. */
   async findOne(id: string): Promise<ISupplier> {
     const supplier = await this.getSupplierOrThrow(id);
     return toSupplierResponse(supplier);
   }
 
-  /**
-   * Admin: Update supplier details.
-   * Enforces email & phone uniqueness when changed (409 on conflict).
-   */
+  /** Updates supplier details and enforces email/phone uniqueness when changed. */
   async update(
     id: string,
     dto: UpdateSupplierDto,
@@ -192,10 +181,7 @@ export class SupplierService {
     return toSupplierResponse(updated);
   }
 
-  /**
-   * Admin: Delete supplier.
-   * Blocked with 409 Conflict if products are linked to this supplier (Docs 01 §22.2, 03 §7).
-   */
+  /** Deletes a supplier if no products are linked (`409` on conflict). */
   async remove(id: string, adminId?: string): Promise<void> {
     const supplier = await this.getSupplierOrThrow(id);
 

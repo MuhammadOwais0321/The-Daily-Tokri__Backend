@@ -3,12 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { NotificationDbService } from '../notification.db.service';
 
-/**
- * Periodically purges old notifications exceeding the retention threshold.
- * Runs daily at midnight.
- * Default retention is 30 days, configurable via NOTIFICATION_RETENTION_DAYS.
- * Verified against docs: 01 §22.3, 02 §2.4.
- */
+/** Daily cron job that purges notifications older than `NOTIFICATION_RETENTION_DAYS` (default 30 days). */
 @Injectable()
 export class NotificationRetentionCron {
   private readonly logger = new Logger(NotificationRetentionCron.name);

@@ -28,30 +28,21 @@ import 'multer';
 export class BrandController {
   constructor(private readonly brandService: BrandService) {}
 
-  /**
-   * Admin: List all brands with pagination and filters.
-   * GET /admin/brands
-   */
+  /** List all brands with pagination and filters. */
   @SkipThrottle()
   @Get()
   findAll(@Query() query: BrandQueryDto) {
     return this.brandService.findAll(query);
   }
 
-  /**
-   * Admin: Get brand detail by UUID.
-   * GET /admin/brands/:id
-   */
+  /** Get brand detail by UUID. */
   @SkipThrottle()
   @Get(':id')
   findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.brandService.findOne(id);
   }
 
-  /**
-   * Admin: Create a new brand.
-   * POST /admin/brands
-   */
+  /** Create a new brand. */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -62,10 +53,7 @@ export class BrandController {
     return this.brandService.create(createBrandDto, adminId);
   }
 
-  /**
-   * Admin: Update brand name or active status.
-   * PATCH /admin/brands/:id
-   */
+  /** Update brand name or active status. */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Patch(':id')
   update(
@@ -76,10 +64,7 @@ export class BrandController {
     return this.brandService.update(id, updateBrandDto, adminId);
   }
 
-  /**
-   * Admin: Delete brand (blocked with 409 if products are linked).
-   * DELETE /admin/brands/:id
-   */
+  /** Delete brand (blocked with 409 if products are linked). */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -90,10 +75,7 @@ export class BrandController {
     return this.brandService.remove(id, adminId);
   }
 
-  /**
-   * Admin: Upload or replace brand logo to S3 (magic bytes verified).
-   * POST /admin/brands/:id/logo
-   */
+  /** Upload or replace brand logo in S3. */
   @Throttle(RATE_LIMITS.ADMIN_IMAGE_UPLOAD)
   @Post(':id/logo')
   @UseInterceptors(FileInterceptor('logo'))
@@ -105,10 +87,7 @@ export class BrandController {
     return this.brandService.uploadLogo(id, file, adminId);
   }
 
-  /**
-   * Admin: Delete brand logo from S3 and database.
-   * DELETE /admin/brands/:id/logo
-   */
+  /** Delete brand logo from S3 and database. */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Delete(':id/logo')
   deleteLogo(

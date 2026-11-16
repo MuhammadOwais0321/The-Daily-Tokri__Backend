@@ -10,14 +10,8 @@ import {
 } from './payment-gateway.interface';
 
 /**
- * Mock payment gateway — simulates a real gateway's behaviour without
- * external dependencies. Implements the same IPaymentGateway interface so
- * the business services never know whether they are talking to Stripe or the mock.
- *
- * Webhook signature: HMAC-SHA256 over JSON body, key = MOCK_PAYMENT_WEBHOOK_SECRET.
- * Header: x-signature
- *
- * Verified against docs: 02 §4, api-reference Part 2 (mock-complete, mock webhook).
+ * Mock payment gateway for local development and automated testing.
+ * Uses HMAC-SHA256 (`x-signature`) to sign and verify webhook payloads.
  */
 @Injectable()
 export class MockPaymentGateway implements IPaymentGateway {
@@ -30,10 +24,7 @@ export class MockPaymentGateway implements IPaymentGateway {
       'mock_webhook_secret_default_key_32chars';
   }
 
-  /**
-   * Creates a fake payment intent. The returned gatewayRef is the idempotency key
-   * used throughout the payment lifecycle and stored as payments.gatewayRef.
-   */
+  /** Creates a mock payment intent and returns its unique gateway reference. */
   async createPaymentIntent(
     orderId: string,
     amountPence: number,
@@ -46,10 +37,7 @@ export class MockPaymentGateway implements IPaymentGateway {
     return { gatewayRef };
   }
 
-  /**
-   * Simulates a refund. Always succeeds to allow easy integration testing.
-   * In a real gateway this would call Stripe's refund API.
-   */
+  /** Simulates a full refund on the mock gateway. */
   async refundPayment(
     gatewayRef: string,
     amountPence: number,
@@ -61,11 +49,7 @@ export class MockPaymentGateway implements IPaymentGateway {
     return { refunded: true, gatewayRefundRef };
   }
 
-  /**
-   * Verifies HMAC-SHA256 signature using timing-safe comparison.
-   * Header expected: x-signature (hex-encoded HMAC).
-   * Throws BadRequestException (400) on invalid signature — consistent with docs 10 §3.
-   */
+  /** Verifies the `x-signature` HMAC-SHA256 header using constant-time comparison. */
   verifyWebhookSignature(
     rawBody: string | Buffer | Record<string, any>,
     signature?: string,
@@ -104,18 +88,17 @@ export class MockPaymentGateway implements IPaymentGateway {
     }
 
     try {
-      return (typeof rawBody === 'object' && !Buffer.isBuffer(rawBody)
-        ? rawBody
-        : JSON.parse(body)) as PaymentGatewayWebhookEvent;
+      return (
+        typeof rawBody === 'object' && !Buffer.isBuffer(rawBody)
+          ? rawBody
+          : JSON.parse(body)
+      ) as PaymentGatewayWebhookEvent;
     } catch {
       throw new BadRequestException('Invalid webhook payload: malformed JSON.');
     }
   }
 
-  /**
-   * Helper used by the mock-complete endpoint to generate a signed webhook event.
-   * This simulates what the real gateway would POST to our /webhooks endpoint.
-   */
+  /** Builds a signed webhook payload for testing. */
   buildSignedWebhookEvent(event: PaymentGatewayWebhookEvent): {
     body: string;
     signature: string;

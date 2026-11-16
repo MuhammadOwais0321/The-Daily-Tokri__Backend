@@ -23,30 +23,21 @@ import { SupplierService } from './supplier.service';
 export class SupplierController {
   constructor(private readonly supplierService: SupplierService) {}
 
-  /**
-   * Admin: List all suppliers with pagination and filters.
-   * GET /admin/suppliers
-   */
+  /** List all suppliers with pagination and filters. */
   @SkipThrottle()
   @Get()
   findAll(@Query() query: SupplierQueryDto) {
     return this.supplierService.findAll(query);
   }
 
-  /**
-   * Admin: Get supplier detail by UUID.
-   * GET /admin/suppliers/:id
-   */
+  /** Get supplier detail by UUID. */
   @SkipThrottle()
   @Get(':id')
   findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.supplierService.findOne(id);
   }
 
-  /**
-   * Admin: Create a new supplier.
-   * POST /admin/suppliers
-   */
+  /** Create a new supplier. */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -57,10 +48,7 @@ export class SupplierController {
     return this.supplierService.create(createSupplierDto, adminId);
   }
 
-  /**
-   * Admin: Update supplier details.
-   * PATCH /admin/suppliers/:id
-   */
+  /** Update supplier details. */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Patch(':id')
   update(
@@ -71,10 +59,7 @@ export class SupplierController {
     return this.supplierService.update(id, updateSupplierDto, adminId);
   }
 
-  /**
-   * Admin: Delete supplier (blocked with 409 if products are linked).
-   * DELETE /admin/suppliers/:id
-   */
+  /** Delete supplier (blocked with 409 if products are linked). */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)

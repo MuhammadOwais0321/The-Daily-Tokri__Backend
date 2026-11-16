@@ -26,19 +26,13 @@ import { RATE_LIMITS } from '../../config/rate-limit.config';
 export class CartController {
   constructor(private readonly cartService: CartService) {}
 
-  /**
-   * Get current customer's shopping cart.
-   * Creates one automatically if it does not exist yet.
-   */
+  /** Get or create the current customer's shopping cart. */
   @Get()
   getCart(@CurrentUser('id') userId: string) {
     return this.cartService.getCart(userId);
   }
 
-  /**
-   * Add a product to the cart (increments quantity if already in cart).
-   * Validates available stock and order limits.
-   */
+  /** Add a product to the cart (increments quantity if already present). */
   @Post('items')
   addItem(
     @CurrentUser('id') userId: string,
@@ -47,10 +41,7 @@ export class CartController {
     return this.cartService.addItem(userId, addToCartDto);
   }
 
-  /**
-   * Update quantity of a cart item (PATCH /cart/items/:id per api-reference).
-   * If quantity is 0, the item is removed.
-   */
+  /** Update cart item quantity (removes item when quantity is 0). */
   @Patch('items/:id')
   updateItem(
     @CurrentUser('id') userId: string,
@@ -60,9 +51,7 @@ export class CartController {
     return this.cartService.updateItem(userId, itemId, updateCartItemDto);
   }
 
-  /**
-   * Remove a specific item from the cart.
-   */
+  /** Remove a specific item from the cart. */
   @Delete('items/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   removeItem(
@@ -72,9 +61,7 @@ export class CartController {
     return this.cartService.removeItem(userId, itemId);
   }
 
-  /**
-   * Clear all items from the current customer's cart.
-   */
+  /** Clear all items from the current customer's cart. */
   @Delete()
   @HttpCode(HttpStatus.NO_CONTENT)
   clearCart(@CurrentUser('id') userId: string) {

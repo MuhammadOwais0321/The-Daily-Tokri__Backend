@@ -11,10 +11,7 @@ export interface SafeUser {
   createdAt: Date;
 }
 
-/**
- * Strips anonymized prefix from deleted user emails according to Section 6 of 01-business-logic.md
- * e.g. "[DELETED] <id>:john@example.com" -> "john@example.com"
- */
+/** Strips the `[DELETED] <id>:` prefix from anonymized user emails. */
 export function stripDeletedEmailPrefix(email: string): string {
   if (!email) return email;
   const match = email.match(/^\[DELETED\]\s*(?:[^:]+:)?(.*)$/);

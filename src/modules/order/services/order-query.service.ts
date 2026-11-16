@@ -9,9 +9,7 @@ import { IOrderResponse } from '../types';
 export class OrderQueryService {
   constructor(private readonly orderDb: OrderDbService) {}
 
-  /**
-   * Retrieves paginated order history for the logged-in customer.
-   */
+  /** Retrieves paginated order history for the customer. */
   async findCustomerOrders(
     userId: string,
     query: ListOrdersQueryDto,
@@ -27,10 +25,7 @@ export class OrderQueryService {
     };
   }
 
-  /**
-   * Retrieves single order detail for the customer.
-   * Scoped by userId to protect against IDOR.
-   */
+  /** Retrieves single order detail scoped to `userId` (returns 404 if not owned). */
   async findCustomerOrderDetail(
     userId: string,
     orderId: string,
@@ -43,9 +38,7 @@ export class OrderQueryService {
     return toOrderResponse(order);
   }
 
-  /**
-   * Retrieves paginated orders for Admin view with search and filters.
-   */
+  /** Retrieves paginated orders for admin view with search and filters. */
   async findAdminOrders(
     query: ListOrdersQueryDto,
   ): Promise<{ data: IOrderResponse[]; meta: PaginationMeta }> {
@@ -60,9 +53,7 @@ export class OrderQueryService {
     };
   }
 
-  /**
-   * Retrieves detailed order by ID for Admin view.
-   */
+  /** Retrieves full order details by ID for admin view. */
   async findAdminOrderDetail(orderId: string): Promise<IOrderResponse> {
     const order = await this.orderDb.findById(orderId);
     if (!order) {

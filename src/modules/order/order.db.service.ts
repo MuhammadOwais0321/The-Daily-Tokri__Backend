@@ -36,11 +36,7 @@ export class OrderDbService {
     },
   };
 
-  /**
-   * Detail include: includes CONSUMED inventory transactions on order items
-   * to extract batch allocation details for warehouse physical picking.
-   * Utilizes @@index([orderItemId, type]) to prevent N+1 queries.
-   */
+  /** Includes `CONSUMED` inventory transactions on order items for batch picking details. */
   readonly orderDetailInclude = {
     items: {
       include: {
@@ -83,20 +79,13 @@ export class OrderDbService {
     return tx ?? this.db;
   }
 
-  /**
-   * Runs an interactive database transaction.
-   */
   async runInTransaction<T>(
     fn: (tx: Prisma.TransactionClient) => Promise<T>,
   ): Promise<T> {
     return this.db.$transaction(fn);
   }
 
-  /**
-   * Generates the next sequential order number using PostgreSQL DB sequence 'order_number_seq'.
-   * Format: ORD-<YEAR>-<000001>
-   * Verified against docs: 01 §14, 03 §3.1.
-   */
+  /** Generates the next sequential order number (`ORD-<YEAR>-<000001>`) from `order_number_seq`. */
   async generateOrderNumber(tx: Prisma.TransactionClient): Promise<string> {
     const result = await tx.$queryRaw<
       Array<{ nextval: bigint | string | number }>
@@ -106,10 +95,7 @@ export class OrderDbService {
     return `ORD-${year}-${String(seqNum).padStart(6, '0')}`;
   }
 
-  /**
-   * Locks the inventory row for a given product with SELECT ... FOR UPDATE.
-   * Deterministic lock order must be preserved by sorting productIds beforehand.
-   */
+  /** Acquires a `FOR UPDATE` row lock on the product's inventory row. */
   async lockInventoryByProductId(
     productId: string,
     tx: Prisma.TransactionClient,
@@ -119,9 +105,7 @@ export class OrderDbService {
     );
   }
 
-  /**
-   * Locks a specific inventory batch row with SELECT ... FOR UPDATE.
-   */
+  /** Acquires a `FOR UPDATE` row lock on a specific inventory batch row. */
   async lockBatchById(
     batchId: string,
     tx: Prisma.TransactionClient,
@@ -131,11 +115,7 @@ export class OrderDbService {
     );
   }
 
-  /**
-   * Finds an order by its ID, optionally enforcing customer ownership (userId).
-   * Detail responses load orderDetailInclude containing CONSUMED inventory transactions
-   * with zero N+1 overhead via @@index([orderItemId, type]).
-   */
+  /** Finds an order by ID, optionally scoped to `userId` for customer ownership enforcement. */
   async findById(
     id: string,
     userId?: string,
@@ -153,9 +133,7 @@ export class OrderDbService {
     });
   }
 
-  /**
-   * Finds orders with pagination and filtering for customer or admin.
-   */
+  /** Queries orders with pagination and filters for customer or admin views. */
   async findMany(
     query: ListOrdersQueryDto,
     userId?: string,
@@ -237,11 +215,7 @@ export class OrderDbService {
     return { data, total };
   }
 
-  /**
-   * Finds orders whose payment window has expired and are still in PENDING status.
-   * Scans using @@index([status, paymentExpiresAt]) for high throughput.
-   * Verified against docs: 01 §17, 03 §1.
-   */
+  /** Finds `PENDING` orders whose `paymentExpiresAt` window has elapsed. */
   async findExpiredPendingOrders(
     now: Date = new Date(),
     limit: number = 50,
@@ -258,10 +232,7 @@ export class OrderDbService {
     });
   }
 
-  /**
-   * Optimistically updates order status guaranteeing the record has not transitioned concurrently.
-   * Returns true if successfully updated, false if count === 0.
-   */
+  /** Transitions order status only if the current status still matches `expectedStatus`. */
   async updateStatusGuarded(
     id: string,
     expectedStatus: OrderStatus,

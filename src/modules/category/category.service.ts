@@ -41,7 +41,6 @@ export class CategoryService {
       throw new BadRequestException('Invalid category name provided');
     }
 
-    // 1. Name & Slug uniqueness
     const existingName = await this.categoryDb.findByName(trimmedName);
     if (existingName) {
       throw new ConflictException(
@@ -56,7 +55,6 @@ export class CategoryService {
       );
     }
 
-    // 2. Hierarchy & Depth calculation
     let depth = 0;
     let path = `/${slug}/`;
     let parentId: string | null = null;
@@ -67,14 +65,12 @@ export class CategoryService {
         throw new NotFoundException('Parent category not found');
       }
 
-      // Enforce max depth constraint
       if (parent.depth >= CATEGORY_MAX_DEPTH) {
         throw new BadRequestException(
           `Maximum category depth of 3 levels (depth 0, 1, 2) reached. Cannot add subcategory under depth ${parent.depth}.`,
         );
       }
 
-      // Cannot add subcategory if parent has products
       const parentHasProducts = await this.categoryDb.hasProducts(parent.id);
       if (parentHasProducts) {
         throw new ConflictException(
@@ -82,7 +78,6 @@ export class CategoryService {
         );
       }
 
-      // bestCategory restricted to top-level
       if (dto.bestCategory) {
         throw new BadRequestException(
           'Only top-level (depth 0) categories can be marked as best category',
@@ -93,15 +88,12 @@ export class CategoryService {
       const parentPath = parent.path || `/${parent.slug}/`;
       path = `${parentPath}${slug}/`;
       parentId = parent.id;
-    } else {
-      // Validate max best categories limit
-      if (dto.bestCategory) {
-        const bestCount = await this.categoryDb.countBestCategories();
-        if (bestCount >= MAX_BEST_CATEGORIES) {
-          throw new BadRequestException(
-            `Maximum of ${MAX_BEST_CATEGORIES} best categories allowed`,
-          );
-        }
+    } else if (dto.bestCategory) {
+      const bestCount = await this.categoryDb.countBestCategories();
+      if (bestCount >= MAX_BEST_CATEGORIES) {
+        throw new BadRequestException(
+          `Maximum of ${MAX_BEST_CATEGORIES} best categories allowed`,
+        );
       }
     }
 
@@ -122,7 +114,6 @@ export class CategoryService {
         tx,
       );
 
-      // Parent is no longer a leaf
       if (parentId) {
         await this.categoryDb.updateParentIsLeaf(parentId, false, tx);
       }
@@ -134,7 +125,6 @@ export class CategoryService {
       `Category created: ${created.name} (${created.id}) at depth ${created.depth}`,
     );
 
-    // Fire-and-forget audit log
     this.auditService
       .log({
         entityType: 'CATEGORY',
@@ -162,14 +152,12 @@ export class CategoryService {
     query: Partial<CategoryQueryDto> = {},
     isPublic: boolean = false,
   ): Promise<ICategoryListResponse | ICategoryTreeNode[]> {
-    // If tree representation requested
     if (query.tree) {
       const onlyActive = isPublic ? true : (query.isActive ?? true);
       const roots = await this.categoryDb.getTree(onlyActive);
       return roots.map(toCategoryTreeNode);
     }
 
-    // For public routes, force isActive = true as recommended in docs
     const effectiveIsActive = isPublic ? true : query.isActive;
 
     return this.categoryDb.listCategories({
@@ -400,7 +388,6 @@ export class CategoryService {
 
     this.logger.log(`Category updated: ${updated.name} (${updated.id})`);
 
-    // Fire-and-forget audit log
     this.auditService
       .log({
         entityType: 'CATEGORY',
@@ -427,7 +414,6 @@ export class CategoryService {
       throw new NotFoundException('Category not found');
     }
 
-    // 1. Children check
     const hasChildren = await this.categoryDb.hasChildren(id);
     if (hasChildren) {
       throw new ConflictException(
@@ -435,7 +421,6 @@ export class CategoryService {
       );
     }
 
-    // 2. Product check
     const hasProducts = await this.categoryDb.hasProducts(id);
     if (hasProducts) {
       throw new ConflictException(
@@ -446,7 +431,7 @@ export class CategoryService {
     await this.categoryDb.runInTransaction(async (tx) => {
       await this.categoryDb.delete(id, tx);
 
-      // If deleted category had a parent, check if parent has any remaining children
+      // Mark parent as leaf if no children remain
       if (category.parentId) {
         const remainingChildren = await this.categoryDb.countChildren(
           category.parentId,
@@ -464,7 +449,6 @@ export class CategoryService {
 
     this.logger.log(`Category deleted: ${category.name} (${category.id})`);
 
-    // Fire-and-forget audit log
     this.auditService
       .log({
         entityType: 'CATEGORY',
@@ -483,9 +467,7 @@ export class CategoryService {
       });
   }
 
-  /**
-   * Upload category image to S3 (Pattern 2: S3 pehle, phir DB; rollback if DB fails)
-   */
+  /** Uploads category image to S3 and rolls back if the DB update fails. */
   async uploadImage(
     id: string,
     file: Express.Multer.File,
@@ -513,7 +495,6 @@ export class CategoryService {
         `Category image updated: ${updated.id} -> ${newImageUrl}`,
       );
 
-      // Fire-and-forget audit log
       this.auditService
         .log({
           entityType: 'CATEGORY',
@@ -534,15 +515,12 @@ export class CategoryService {
 
       return toCategoryResponse(updated);
     } catch (error) {
-      // Rollback: delete the newly uploaded file since DB update failed
       await this.s3Service.deleteFile(newImageUrl);
       throw error;
     }
   }
 
-  /**
-   * Delete category image from S3 and reset category.imageUrl to null
-   */
+  /** Deletes category image from S3 and resets `imageUrl` to null. */
   async deleteImage(id: string, adminId?: string): Promise<ICategory> {
     const category = await this.categoryDb.findById(id);
     if (!category) {
@@ -560,7 +538,6 @@ export class CategoryService {
 
     this.logger.log(`Category image removed: ${id}`);
 
-    // Fire-and-forget audit log
     this.auditService
       .log({
         entityType: 'CATEGORY',
@@ -582,10 +559,7 @@ export class CategoryService {
     return toCategoryResponse(updated);
   }
 
-  /**
-   * Helper used across the application (e.g. Products module)
-   * Product can ONLY be assigned to leaf and active categories.
-   */
+  /** Ensures the target category exists, is active, and is a leaf node. */
   async ensureLeafAndActive(categoryId: string): Promise<ICategory> {
     const category = await this.categoryDb.findById(categoryId);
     if (!category) {

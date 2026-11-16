@@ -3,9 +3,7 @@ import { IHealthResponse } from './types';
 
 @Injectable()
 export class HealthService {
-  /**
-   * Lightweight liveness probe (Docs 01 §22.8, 02 §2.2, api-reference.md).
-   */
+  /** Returns lightweight liveness status and process uptime. */
   check(): IHealthResponse {
     return {
       status: 'ok',

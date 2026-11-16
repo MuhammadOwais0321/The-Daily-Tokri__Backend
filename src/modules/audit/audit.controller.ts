@@ -11,10 +11,7 @@ import { AuditQueryDto } from './dto';
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
 
-  /**
-   * Admin: Retrieve today's system audit logs with entityType, actorType, and pagination filters.
-   * GET /admin/audit-logs
-   */
+  /** Lists today's audit logs with optional entityType and actorType filters. */
   @Get()
   findAll(@Query() query: AuditQueryDto) {
     return this.auditService.findAll(query);

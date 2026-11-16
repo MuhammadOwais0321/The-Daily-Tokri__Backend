@@ -8,6 +8,10 @@ interface RequestLike {
   user?: { id?: string };
 }
 
+/**
+ * Rate-limit guard that tracks authenticated requests by JWT user ID (`sub`)
+ * and falls back to client IP for unauthenticated requests.
+ */
 @Injectable()
 export class CustomThrottlerGuard extends ThrottlerGuard {
   protected override async getTracker(

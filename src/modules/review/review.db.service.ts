@@ -28,10 +28,7 @@ export class ReviewDbService {
     return tx ?? this.db;
   }
 
-  /**
-   * Fetches an order item along with its parent order, product, and existing review
-   * to validate verified-purchase eligibility (Docs 01 §21).
-   */
+  /** Fetches an order item with its parent order, product, and existing review for eligibility checks. */
   async findOrderItemForReview(
     orderItemId: string,
     tx?: Prisma.TransactionClient,
@@ -65,9 +62,6 @@ export class ReviewDbService {
     });
   }
 
-  /**
-   * Checks if a product exists and is publicly visible/active.
-   */
   async findPublicProductById(productId: string) {
     return this.db.product.findUnique({
       where: { id: productId },
@@ -92,9 +86,8 @@ export class ReviewDbService {
   }
 
   /**
-   * Atomically creates a new review in PENDING status with isLatest=true,
-   * while marking any previous reviews by the same user for the same product as isLatest=false.
-   * Verified against docs: 01 §21.
+   * Atomically creates a `PENDING` review with `isLatest = true` and demotes previous reviews
+   * by the same user for the same product to `isLatest = false`.
    */
   async createReviewWithLatestFlag(data: {
     orderItemId: string;
@@ -105,7 +98,6 @@ export class ReviewDbService {
   }): Promise<ReviewWithRelations> {
     try {
       return await this.db.$transaction(async (tx) => {
-        // Demote previous reviews by the same user for the same product (Docs 01 §21)
         await tx.review.updateMany({
           where: {
             userId: data.userId,
@@ -135,7 +127,6 @@ export class ReviewDbService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        // Docs 01 §21: Ek order item = ek review (orderItemId @unique) -> dobara 400
         throw new BadRequestException(
           'A review has already been submitted for this order item.',
         );
@@ -148,10 +139,7 @@ export class ReviewDbService {
     }
   }
 
-  /**
-   * Updates a customer's review and resets status back to PENDING for re-moderation.
-   * Verified against docs: 01 §21.
-   */
+  /** Updates a customer's review and resets status to `PENDING` for re-moderation. */
   async updateCustomerReview(
     id: string,
     data: {
@@ -172,10 +160,7 @@ export class ReviewDbService {
     });
   }
 
-  /**
-   * Deletes a review and, if it was marked `isLatest: true`, promotes the user's
-   * most recent remaining review for the same product to `isLatest: true`.
-   */
+  /** Deletes a review and promotes the user's newest remaining review for the product to `isLatest = true`. */
   async deleteReviewAndPromotePrevious(review: {
     id: string;
     userId: string;
@@ -258,9 +243,7 @@ export class ReviewDbService {
     return { data, total, page, limit };
   }
 
-  /**
-   * Paginated list of a customer's own reviews.
-   */
+  /** Paginated list of a customer's own reviews. */
   async findCustomerReviews(userId: string, query: ReviewQueryDto) {
     const where: Prisma.ReviewWhereInput = {
       ...this.buildCommonFilters(query),
@@ -278,10 +261,8 @@ export class ReviewDbService {
   }
 
   /**
-   * Public product reviews list (APPROVED + isLatest=true only) along with
-   * overall rating summary and 1..5 star breakdown.
-   * Uses @@index([productId, status, isLatest]) for fast lookup and aggregation.
-   * Verified against docs: 01 §21, 03 §1, 11 §5.
+   * Queries approved latest reviews (`status = APPROVED`, `isLatest = true`) for a product
+   * along with the overall rating summary and 1..5 star breakdown.
    */
   async findPublicProductReviews(productId: string, query: ReviewQueryDto) {
     const basePublicWhere: Prisma.ReviewWhereInput = {
@@ -337,9 +318,7 @@ export class ReviewDbService {
     return { data, total, page, limit, summary };
   }
 
-  /**
-   * Paginated list of all reviews for admin moderation.
-   */
+  /** Paginated list of all reviews for admin moderation. */
   async findAdminReviews(query: ReviewQueryDto) {
     const where: Prisma.ReviewWhereInput = {
       ...this.buildCommonFilters(query),
@@ -360,9 +339,6 @@ export class ReviewDbService {
     return this.executePaginatedQuery(where, query);
   }
 
-  /**
-   * Updates review status (APPROVED / REJECTED) and optional adminReply.
-   */
   async moderateReview(
     id: string,
     status: ReviewStatus,
@@ -380,9 +356,6 @@ export class ReviewDbService {
     });
   }
 
-  /**
-   * Updates admin reply on a review.
-   */
   async updateAdminReply(
     id: string,
     adminReply: string | null,
@@ -396,8 +369,6 @@ export class ReviewDbService {
     });
   }
 
-  // --- Review Images Management ---
-
   async findImageById(
     imageId: string,
     tx?: Prisma.TransactionClient,
@@ -408,10 +379,7 @@ export class ReviewDbService {
     });
   }
 
-  /**
-   * Inserts review image records with assigned slots (0..4) and resets review status
-   * to PENDING if the review was previously moderated.
-   */
+  /** Inserts review images into slots `0..4` and resets review status to `PENDING` if previously moderated. */
   async addImagesAndResetStatus(
     reviewId: string,
     images: Array<{ url: string; slot: number }>,
@@ -470,9 +438,7 @@ export class ReviewDbService {
     });
   }
 
-  /**
-   * Computes a customer's average rating across their approved reviews (for profile stats, Docs 01 §22.7).
-   */
+  /** Computes a customer's average rating across their approved reviews. */
   async getUserAverageApprovedRating(userId: string): Promise<number> {
     const result = await this.db.review.aggregate({
       where: {

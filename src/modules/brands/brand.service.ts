@@ -82,11 +82,7 @@ export class BrandService {
       });
   }
 
-  /**
-   * Admin: Create a new brand.
-   * Enforces global name & slug uniqueness (409 on conflict).
-   * Verified against docs: 01 §22.1, 03 §1.
-   */
+  /** Creates a new brand and enforces name/slug uniqueness. */
   async create(dto: CreateBrandDto, adminId?: string): Promise<IBrand> {
     const slug = await this.ensureUniqueNameAndSlug(dto.name);
 
@@ -108,9 +104,7 @@ export class BrandService {
     return toBrandResponse(created);
   }
 
-  /**
-   * Admin: Paginated brand list with search and isActive filters.
-   */
+  /** Returns a paginated brand list with search and active status filters. */
   async findAll(query: BrandQueryDto): Promise<IBrandListResponse> {
     const { data, total, page, limit } = await this.brandDb.findMany(query);
 
@@ -120,18 +114,13 @@ export class BrandService {
     };
   }
 
-  /**
-   * Admin: Get brand detail by ID.
-   */
+  /** Returns brand detail by ID. */
   async findOne(id: string): Promise<IBrand> {
     const brand = await this.getBrandOrThrow(id);
     return toBrandResponse(brand);
   }
 
-  /**
-   * Admin: Update brand name or active status.
-   * Recalculates slug if name changes and enforces uniqueness (409 on conflict).
-   */
+  /** Updates brand name or active status and recalculates slug when name changes. */
   async update(
     id: string,
     dto: UpdateBrandDto,
@@ -173,11 +162,7 @@ export class BrandService {
     return toBrandResponse(updated);
   }
 
-  /**
-   * Admin: Delete brand.
-   * Blocked with 409 Conflict if products are linked to this brand (Docs 01 §22.1, 03 §7).
-   * Cleans up S3 logo after DB delete.
-   */
+  /** Deletes a brand if no products are linked and cleans up its S3 logo. */
   async remove(id: string, adminId?: string): Promise<void> {
     const brand = await this.getBrandOrThrow(id);
 
@@ -201,11 +186,7 @@ export class BrandService {
     });
   }
 
-  /**
-   * Admin: Upload or replace brand logo in S3.
-   * Uploads to S3 first, updates DB, and rolls back S3 file if DB update fails.
-   * Verified against docs: 01 §22.1, 10 §4.
-   */
+  /** Uploads a brand logo to S3 and rolls back if the DB update fails. */
   async uploadLogo(
     id: string,
     file: Express.Multer.File,
@@ -238,10 +219,7 @@ export class BrandService {
     }
   }
 
-  /**
-   * Admin: Delete brand logo from S3 and reset logoUrl to null (idempotent).
-   * Verified against docs: 01 §22.1, api-reference.md.
-   */
+  /** Deletes the brand logo from S3 and resets `logoUrl` to null. */
   async deleteLogo(id: string, adminId?: string): Promise<IBrand> {
     const brand = await this.getBrandOrThrow(id);
     const oldLogoUrl = brand.logoUrl;

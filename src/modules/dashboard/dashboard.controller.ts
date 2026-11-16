@@ -12,11 +12,7 @@ import { DashboardQueryDto } from './dto';
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
-  /**
-   * Admin: Export dashboard KPIs and breakdowns as CSV.
-   * Placed before root route for clarity.
-   * GET /admin/dashboard/export
-   */
+  /** Export dashboard KPIs and breakdowns as CSV. */
   @Get('export')
   async exportDashboard(
     @Query() query: DashboardQueryDto,
@@ -29,10 +25,7 @@ export class DashboardController {
     return csv;
   }
 
-  /**
-   * Admin: Get dashboard KPIs, period comparisons, and store breakdowns.
-   * GET /admin/dashboard
-   */
+  /** Get dashboard KPIs, period comparisons, and store breakdowns. */
   @Get()
   getDashboard(@Query() query: DashboardQueryDto) {
     return this.dashboardService.getDashboard(query);

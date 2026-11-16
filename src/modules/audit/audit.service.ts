@@ -11,11 +11,7 @@ export class AuditService {
 
   constructor(private readonly auditDb: AuditDbService) {}
 
-  /**
-   * Fire-and-forget audit logger used across all domain modules.
-   * Never throws: any persistence error is logged so the caller's main flow never fails.
-   * Verified against docs: 01 §2.7, 11 §6.
-   */
+  /** Fire-and-forget audit logger; catches and logs DB errors so callers never fail. */
   async log(data: ICreateAuditData): Promise<void> {
     try {
       await this.auditDb.create(data);
@@ -30,10 +26,7 @@ export class AuditService {
     }
   }
 
-  /**
-   * Admin: Paginated list of today's audit logs filtered by entityType and/or actorType.
-   * Verified against docs: 01 §2.7, 01 §22.6.
-   */
+  /** Returns a paginated list of today's audit logs. */
   async findAll(query: AuditQueryDto): Promise<IAuditLogListResponse> {
     const { data, total, page, limit } = await this.auditDb.findMany(query);
     return {

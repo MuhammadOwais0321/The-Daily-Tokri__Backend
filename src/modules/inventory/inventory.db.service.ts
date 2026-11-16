@@ -356,11 +356,7 @@ export class InventoryDbService {
     });
   }
 
-  /**
-   * Refreshes the inventory stock status based on available stock and lowStockThreshold.
-   * If product is batchTracked, available stock is the sum of qtyOnHand of all ACTIVE non-expired batches.
-   * Otherwise, available stock is inventory.qtyOnHand.
-   */
+  /** Recomputes and updates `stockStatus` based on available stock and `lowStockThreshold`. */
   async refreshInventoryStatus(
     inventoryId: string,
     tx?: Prisma.TransactionClient,

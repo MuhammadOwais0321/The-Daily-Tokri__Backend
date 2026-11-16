@@ -25,28 +25,19 @@ import { OrderService } from './order.service';
 export class AdminOrderController {
   constructor(private readonly orderService: OrderService) {}
 
-  /**
-   * Lists all store orders with administrative filters and pagination.
-   * GET /admin/orders
-   */
+  /** Lists all store orders with filters and pagination. */
   @Get()
   findAll(@Query() query: ListOrdersQueryDto) {
     return this.orderService.findAdminOrders(query);
   }
 
-  /**
-   * Retrieves full details of any order by ID.
-   * GET /admin/orders/:id
-   */
+  /** Retrieves full order details by ID. */
   @Get(':id')
   findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.orderService.findAdminOrderDetail(id);
   }
 
-  /**
-   * Advances an order's fulfillment status per ADMIN_ALLOWED_TRANSITIONS map.
-   * PATCH /admin/orders/:id/status
-   */
+  /** Advances an order's fulfillment status. */
   @Patch(':id/status')
   updateStatus(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -56,10 +47,7 @@ export class AdminOrderController {
     return this.orderService.updateStatus(id, admin, dto);
   }
 
-  /**
-   * Cancels an order at any pre-delivery stage.
-   * PATCH /admin/orders/:id/cancel
-   */
+  /** Cancels an order at any pre-delivery stage. */
   @Patch(':id/cancel')
   cancelOrder(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,

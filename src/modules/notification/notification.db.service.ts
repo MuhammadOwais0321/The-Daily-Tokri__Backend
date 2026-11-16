@@ -4,23 +4,13 @@ import { DatabaseService } from '../../database/database.service';
 import { NotificationQueryDto } from './dto';
 import { IDispatchNotificationPayload } from './types';
 
-/**
- * Handles all database interactions for the Notification module.
- * Prisma queries stay here to keep service focused on business rules.
- * Verified against docs: 01 §2.8, 01 §22.3, 04 §5.
- */
 @Injectable()
 export class NotificationDbService {
   private readonly logger = new Logger(NotificationDbService.name);
 
   constructor(private readonly db: DatabaseService) {}
 
-  /**
-   * Upserts or creates an in-app notification for a given user.
-   * If both referenceId and referenceEvent are provided, uses composite unique key
-   * @@unique([userId, referenceId, referenceEvent]) to prevent duplicate notifications.
-   * Verified against docs: 01 §2.8, 03 §3.
-   */
+  /** Upserts a notification on `(userId, referenceId, referenceEvent)` to prevent duplicates. */
   async upsertForUser(
     userId: string,
     data: IDispatchNotificationPayload,
@@ -61,10 +51,7 @@ export class NotificationDbService {
     });
   }
 
-  /**
-   * Retrieves paginated notifications strictly scoped to the requesting user.
-   * Verified against docs: 01 §22.3, 06 §7 (IDOR protection).
-   */
+  /** Retrieves paginated notifications scoped to the requesting user. */
   async findUserNotifications(
     userId: string,
     query: NotificationQueryDto,
@@ -91,9 +78,6 @@ export class NotificationDbService {
     return { data, total };
   }
 
-  /**
-   * Counts unread notifications for a user.
-   */
   async countUnread(userId: string): Promise<number> {
     return this.db.notification.count({
       where: {
@@ -103,9 +87,6 @@ export class NotificationDbService {
     });
   }
 
-  /**
-   * Finds a notification by ID and verifies it belongs to the user.
-   */
   async findByIdAndUserId(
     id: string,
     userId: string,
@@ -115,10 +96,7 @@ export class NotificationDbService {
     });
   }
 
-  /**
-   * Marks a single notification as read if it belongs to the user.
-   * Idempotent: if already read, returns existing record without redundant write.
-   */
+  /** Marks a notification as read if owned by the user (idempotent). */
   async markAsRead(id: string, userId: string): Promise<Notification | null> {
     const existing = await this.findByIdAndUserId(id, userId);
     if (!existing) {
@@ -138,9 +116,6 @@ export class NotificationDbService {
     });
   }
 
-  /**
-   * Marks all unread notifications for a user as read.
-   */
   async markAllAsRead(userId: string): Promise<number> {
     const result = await this.db.notification.updateMany({
       where: {
@@ -156,11 +131,7 @@ export class NotificationDbService {
     return result.count;
   }
 
-  /**
-   * Deletes notifications older than the given cutoff date.
-   * Used by retention cleanup cron.
-   * Verified against docs: 01 §22.3, 02 §2.4.
-   */
+  /** Deletes notifications older than the given cutoff date. */
   async deleteOlderThan(cutoffDate: Date): Promise<number> {
     const result = await this.db.notification.deleteMany({
       where: {
@@ -173,10 +144,6 @@ export class NotificationDbService {
     return result.count;
   }
 
-  /**
-   * Fetches user notification preferences (e.g. pushNotification, emailNotification).
-   * Verified against docs: 01 §2.8.
-   */
   async getUserPreferences(userId: string): Promise<UserPreference | null> {
     return this.db.userPreference.findUnique({
       where: { userId },

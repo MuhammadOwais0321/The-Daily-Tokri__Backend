@@ -29,40 +29,28 @@ import { UserService } from './user.service';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  /**
-   * Current authenticated user profile.
-   * GET /user/me
-   */
+  /** Returns the current authenticated user's profile. */
   @SkipThrottle()
   @Get('me')
   getMe(@CurrentUser('id') userId: string) {
     return this.userService.getProfile(userId);
   }
 
-  /**
-   * Current authenticated user stats (totalOrders, totalSpent, avgRating).
-   * GET /user/me/stats
-   */
+  /** Returns the current authenticated user's order and rating statistics. */
   @SkipThrottle()
   @Get('me/stats')
   getMyStats(@CurrentUser('id') userId: string) {
     return this.userService.getStats(userId);
   }
 
-  /**
-   * Get current user's notification preferences.
-   * GET /user/preferences
-   */
+  /** Returns the current user's notification preferences. */
   @SkipThrottle()
   @Get('preferences')
   getPreferences(@CurrentUser('id') userId: string) {
     return this.userService.getPreferences(userId);
   }
 
-  /**
-   * Upsert notification preferences (push/email toggles).
-   * PUT /user/preferences
-   */
+  /** Upserts notification preferences (`pushNotification`, `emailNotification`). */
   @Put('preferences')
   upsertPreferences(
     @CurrentUser('id') userId: string,
@@ -71,11 +59,7 @@ export class UserController {
     return this.userService.upsertPreferences(userId, dto);
   }
 
-  /**
-   * Admin: List users with search, role, isActive, and includeDeleted filters.
-   * Placed before :id routes to prevent route shadowing.
-   * GET /user/list
-   */
+  /** Lists users for admin view (declared before `:id` routes to prevent route shadowing). */
   @SkipThrottle()
   @Roles(UserRole.ADMIN)
   @Get('list')
@@ -83,10 +67,7 @@ export class UserController {
     return this.userService.findAll(query);
   }
 
-  /**
-   * Update authenticated user's profile (name, phone).
-   * PUT /user
-   */
+  /** Updates the authenticated user's profile (`name`, `phone`). */
   @Put()
   updateProfile(
     @CurrentUser('id') userId: string,
@@ -95,10 +76,7 @@ export class UserController {
     return this.userService.updateProfile(userId, dto);
   }
 
-  /**
-   * Customer self-delete (anonymizes account in an atomic transaction).
-   * DELETE /user
-   */
+  /** Customer self-delete (anonymizes account in an atomic transaction). */
   @Roles(UserRole.CUSTOMER)
   @Delete()
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -106,10 +84,7 @@ export class UserController {
     return this.userService.deleteAccount(userId);
   }
 
-  /**
-   * Admin: Activate or deactivate a customer account (self -> 400, admin target -> 403).
-   * PATCH /user/:id/status
-   */
+  /** Activates or deactivates a customer account. */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Roles(UserRole.ADMIN)
   @Patch(':id/status')

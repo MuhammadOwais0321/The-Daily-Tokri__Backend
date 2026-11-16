@@ -38,18 +38,13 @@ export class CartDbService {
     },
   };
 
-  /**
-   * Executes database operations within an interactive transaction.
-   */
   async runInTransaction<T>(
     fn: (tx: Prisma.TransactionClient) => Promise<T>,
   ): Promise<T> {
     return this.db.$transaction(fn);
   }
 
-  /**
-   * Finds an existing cart for the user or creates one (Upsert get-or-create).
-   */
+  /** Finds or creates a cart for the user. */
   async findOrCreateCart(
     userId: string,
     tx?: Prisma.TransactionClient,
@@ -63,9 +58,6 @@ export class CartDbService {
     });
   }
 
-  /**
-   * Finds the cart for a user with all relations if it exists.
-   */
   async findCartByUserId(
     userId: string,
     tx?: Prisma.TransactionClient,
@@ -77,9 +69,6 @@ export class CartDbService {
     });
   }
 
-  /**
-   * Finds a product with its images and active inventory batches.
-   */
   async findProductWithInventory(
     productId: string,
     tx?: Prisma.TransactionClient,
@@ -103,9 +92,6 @@ export class CartDbService {
     });
   }
 
-  /**
-   * Finds a single item by cartId and productId.
-   */
   async findCartItemByCartIdAndProductId(
     cartId: string,
     productId: string,
@@ -136,9 +122,7 @@ export class CartDbService {
     });
   }
 
-  /**
-   * Finds a cart item by its ID scoped to the authenticated user's cart (Ownership check).
-   */
+  /** Finds a cart item scoped to the user's cart. */
   async findCartItemByIdAndUserId(
     itemId: string,
     userId: string,
@@ -170,9 +154,6 @@ export class CartDbService {
     });
   }
 
-  /**
-   * Creates a new cart item.
-   */
   async createCartItem(
     cartId: string,
     productId: string,
@@ -189,9 +170,6 @@ export class CartDbService {
     });
   }
 
-  /**
-   * Updates quantity of an existing cart item.
-   */
   async updateCartItemQuantity(
     itemId: string,
     quantity: number,
@@ -204,10 +182,7 @@ export class CartDbService {
     });
   }
 
-  /**
-   * Deletes a cart item by its ID scoped to the user's cart in a single atomic query.
-   * Returns the count of deleted records (1 if deleted, 0 if not found/not owned).
-   */
+  /** Atomically deletes a cart item scoped to the user's cart and returns the deleted count. */
   async deleteCartItemByIdAndUserId(
     itemId: string,
     userId: string,
@@ -223,9 +198,6 @@ export class CartDbService {
     return count;
   }
 
-  /**
-   * Clears all items in a cart by userId.
-   */
   async clearCartByUserId(userId: string, tx?: Prisma.TransactionClient) {
     const client = this.getClient(tx);
     return client.cartItem.deleteMany({

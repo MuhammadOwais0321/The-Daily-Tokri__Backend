@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserDbService } from '../../user/user.db.service';
 
+/** Hourly cron job that purges expired or used verification codes. */
 @Injectable()
 export class VerificationCleanupCron {
   private readonly logger = new Logger(VerificationCleanupCron.name);

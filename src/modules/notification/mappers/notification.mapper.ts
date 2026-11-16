@@ -1,10 +1,7 @@
 import { Notification } from '@prisma/client';
 import { INotificationResponse } from '../types';
 
-/**
- * Maps a Prisma Notification record to the clean API response format.
- * Verified against docs: 04 §7, 05 §4.
- */
+/** Maps a notification entity to `INotificationResponse`. */
 export function toNotificationResponse(
   notification: Notification,
 ): INotificationResponse {

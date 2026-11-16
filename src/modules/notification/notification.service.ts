@@ -19,21 +19,11 @@ import {
   IUnreadCountResponse,
 } from './types';
 
-/**
- * Business logic for Notifications.
- *
- * Rules (Docs 01 §2.8, 01 §22.3):
- * - In-app notification DB upsert on @@unique([userId, referenceId, referenceEvent])
- * - Live Server-Sent Events (SSE) via /notifications/stream with 30s heartbeat
- * - User preferences: pushNotification false suppresses real-time SSE push
- * - All dispatch operations are fire-and-forget (failures logged, never break main flow)
- * - Ownership is enforced: users can only view and update their own notifications
- */
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
 
-  // In-memory active SSE streams per user (Docs 01 §2.8)
+  // Active SSE streams per user
   private readonly userStreams = new Map<string, Set<Subject<MessageEvent>>>();
 
   constructor(
@@ -41,11 +31,7 @@ export class NotificationService {
     private readonly notificationDb: NotificationDbService,
   ) {}
 
-  /**
-   * Retrieves paginated notifications for the logged-in user.
-   * Returns standard { data, meta } shape.
-   * Verified against docs: 05 §4.
-   */
+  /** Retrieves paginated notifications for the authenticated user. */
   async getUserNotifications(
     userId: string,
     query: NotificationQueryDto,
@@ -64,24 +50,14 @@ export class NotificationService {
     };
   }
 
-  /**
-   * Returns count of unread notifications for the user.
-   */
+  /** Returns the unread notification count for the user. */
   async getUnreadCount(userId: string): Promise<IUnreadCountResponse> {
     const count = await this.notificationDb.countUnread(userId);
     return { count };
   }
 
-  /**
-   * Marks a single notification as read.
-   * Validates ownership: if the notification does not exist or belongs to another user,
-   * throws NotFoundException (404) to prevent resource existence leakage.
-   * Verified against docs: 06 §7.
-   */
-  async markAsRead(
-    id: string,
-    userId: string,
-  ): Promise<INotificationResponse> {
+  /** Marks a notification as read (throws 404 if not found or not owned). */
+  async markAsRead(id: string, userId: string): Promise<INotificationResponse> {
     const updated = await this.notificationDb.markAsRead(id, userId);
 
     if (!updated) {
@@ -91,9 +67,7 @@ export class NotificationService {
     return toNotificationResponse(updated);
   }
 
-  /**
-   * Marks all unread notifications for the user as read.
-   */
+  /** Marks all unread notifications for the user as read. */
   async markAllAsRead(userId: string): Promise<IMarkAllReadResponse> {
     const count = await this.notificationDb.markAllAsRead(userId);
     return {
@@ -102,12 +76,7 @@ export class NotificationService {
     };
   }
 
-  /**
-   * Real-time Server-Sent Events stream for connected clients.
-   * Provides 30-second heartbeat to keep connection alive.
-   * Cleans up listeners automatically upon client disconnect.
-   * Verified against docs: 01 §2.8.
-   */
+  /** Creates a real-time SSE stream for the user with a 30-second heartbeat and auto-cleanup on disconnect. */
   getStream(userId: string): Observable<MessageEvent> {
     const subject = new Subject<MessageEvent>();
 
@@ -118,17 +87,13 @@ export class NotificationService {
     }
     userSockets.add(subject);
 
-    // 30-second heartbeat ping
     const heartbeat$ = interval(30000).pipe(
-      map(
-        () =>
-          ({
-            data: {
-              type: 'heartbeat',
-              timestamp: new Date().toISOString(),
-            },
-          }) as MessageEvent,
-      ),
+      map(() => ({
+        data: {
+          type: 'heartbeat',
+          timestamp: new Date().toISOString(),
+        },
+      })),
     );
 
     return merge(subject.asObservable(), heartbeat$).pipe(
@@ -144,11 +109,7 @@ export class NotificationService {
     );
   }
 
-  /**
-   * Dispatches an in-app notification to a specific user.
-   * Fire-and-forget; handles DB upsert and SSE push according to user preference.
-   * Verified against docs: 01 §2.8.
-   */
+  /** Upserts an in-app notification for a user and pushes it over SSE if `pushNotification` is enabled. */
   async dispatchUserNotification(
     userId: string,
     data: IDispatchNotificationPayload,
@@ -157,7 +118,6 @@ export class NotificationService {
       const record = await this.notificationDb.upsertForUser(userId, data);
       const mapped = toNotificationResponse(record);
 
-      // Check user preferences for real-time push (Docs 01 §2.8)
       const prefs = await this.notificationDb.getUserPreferences(userId);
       const pushAllowed = prefs ? prefs.pushNotification : true;
 
@@ -175,11 +135,7 @@ export class NotificationService {
     }
   }
 
-  /**
-   * Dispatches an in-app notification to all active store administrators.
-   * Fire-and-forget; uses unique (userId, referenceId, referenceEvent) to prevent duplicate notifications.
-   * Verified against docs: 01 §2.8, 01 §14.
-   */
+  /** Dispatches an in-app notification to all active store administrators. */
   async dispatchAdminNotification(
     data: IDispatchNotificationPayload,
   ): Promise<void> {
@@ -205,11 +161,7 @@ export class NotificationService {
     }
   }
 
-  /**
-   * Dispatches stock status alert (LOW_STOCK or OUT_OF_STOCK) to administrators.
-   * Fire-and-forget.
-   * Verified against docs: 01 §11.
-   */
+  /** Dispatches a `LOW_STOCK` or `OUT_OF_STOCK` alert to all active administrators. */
   async dispatchStockNotification(
     inventoryId: string,
     productName: string,
@@ -243,7 +195,10 @@ export class NotificationService {
   /**
    * Emits a real-time notification payload to active SSE connections for a user.
    */
-  private emitToUser(userId: string, notification: INotificationResponse): void {
+  private emitToUser(
+    userId: string,
+    notification: INotificationResponse,
+  ): void {
     const sockets = this.userStreams.get(userId);
     if (sockets && sockets.size > 0) {
       const event: MessageEvent = {

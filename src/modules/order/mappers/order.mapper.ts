@@ -10,6 +10,7 @@ import {
   OrderWithRelations,
 } from '../types';
 
+/** Maps an order item and extracts any FEFO batch allocations from its `CONSUMED` transaction note. */
 export function toOrderItemResponse(
   item: OrderWithRelations['items'][number] | OrderItemWithBatch,
 ): IOrderItemResponse {

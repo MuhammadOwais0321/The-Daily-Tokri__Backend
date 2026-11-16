@@ -38,11 +38,7 @@ export interface IProductAllergen {
   createdAt: Date;
 }
 
-/**
- * Public product detail response.
- * Sensitive admin fields (supplierId, supplier, qtyOnHand, barcode, batchTracked, isActive, isVisible)
- * are excluded.
- */
+/** Public product detail response (excludes internal admin fields). */
 export interface IPublicProduct {
   id: string;
   name: string;
@@ -75,10 +71,7 @@ export interface IPublicProduct {
   updatedAt: Date;
 }
 
-/**
- * Admin product detail response.
- * Includes complete internal details like supplier, qtyOnHand, barcode, batch tracking, and visibility flags.
- */
+/** Admin product detail response including supplier, inventory, and visibility flags. */
 export interface IAdminProduct extends IPublicProduct {
   barcode: string | null;
   batchTracked: boolean;
@@ -94,10 +87,7 @@ export interface IAdminProduct extends IPublicProduct {
 
 export type IProduct = IAdminProduct;
 
-/**
- * Public product summary item in listings.
- * Internal fields like barcode, isActive, isVisible, qtyOnHand, supplier are excluded.
- */
+/** Public product summary item for catalog listings. */
 export interface IPublicProductSummary {
   id: string;
   name: string;
@@ -117,10 +107,7 @@ export interface IPublicProductSummary {
   createdAt: Date;
 }
 
-/**
- * Admin product summary item in admin listings.
- * Includes barcode, isActive, isVisible, qtyOnHand, and supplierName.
- */
+/** Admin product summary item for admin catalog listings. */
 export interface IAdminProductSummary extends IPublicProductSummary {
   barcode: string | null;
   isActive: boolean;

@@ -24,9 +24,7 @@ export class SupplierDbService {
     });
   }
 
-  /**
-   * Checks in a single query whether another supplier already uses the given email (case-insensitive) or phone.
-   */
+  /** Checks whether another supplier already uses the given email or phone number. */
   async findConflictByEmailOrPhone(
     email?: string,
     phone?: string,

@@ -45,7 +45,6 @@ export class ErrorsExceptionFilter implements ExceptionFilter {
       return;
     }
 
-    // 1. HttpException handling
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
@@ -98,7 +97,7 @@ export class ErrorsExceptionFilter implements ExceptionFilter {
 
     const exceptionName = getExceptionName(exception);
 
-    // 2. Prisma Known Request Errors
+    // Map known Prisma constraint and lookup errors to HTTP status codes
     if (
       exception instanceof PrismaClientKnownRequestError ||
       exceptionName === 'PrismaClientKnownRequestError'
@@ -144,7 +143,6 @@ export class ErrorsExceptionFilter implements ExceptionFilter {
       }
     }
 
-    // 3. Prisma Validation Error
     if (
       exception instanceof PrismaClientValidationError ||
       exceptionName === 'PrismaClientValidationError'
@@ -157,7 +155,6 @@ export class ErrorsExceptionFilter implements ExceptionFilter {
       return;
     }
 
-    // 4. Other Prisma database errors
     const isOtherPrismaError =
       exception instanceof PrismaClientInitializationError ||
       exception instanceof PrismaClientRustPanicError ||
@@ -176,7 +173,6 @@ export class ErrorsExceptionFilter implements ExceptionFilter {
       return;
     }
 
-    // 5. Unhandled internal server errors (500)
     const err =
       exception instanceof Error ? exception : new Error(String(exception));
     this.logger.error(

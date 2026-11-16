@@ -226,9 +226,7 @@ describe('Critical E2E Workflows (Real PostgreSQL)', () => {
     }
   });
 
-  /**
-   * Helper: Registers, verifies email via captured OTP, and logs in a customer.
-   */
+  /** Registers, verifies email via captured OTP, and logs in a customer. */
   async function registerAndLoginCustomer(
     email: string,
     name = 'Test Customer',
@@ -264,9 +262,6 @@ describe('Critical E2E Workflows (Real PostgreSQL)', () => {
     };
   }
 
-  // =========================================================================
-  // 1. Full Checkout Flow
-  // =========================================================================
   it('1. Full checkout: register -> login -> add to cart -> create order -> mock-complete success -> order CONFIRMED, cart empty, stock deducted', async () => {
     const { token, userId } = await registerAndLoginCustomer(
       'alice@example.com',
@@ -360,9 +355,6 @@ describe('Critical E2E Workflows (Real PostgreSQL)', () => {
     expect(updatedUser?.totalSpent.toFixed(2)).toBe('11.00');
   });
 
-  // =========================================================================
-  // 2. Admin Order Fulfillment Flow
-  // =========================================================================
   it('2. Admin flow: CONFIRMED order -> PROCESSING -> READY_FOR_DELIVERY -> DELIVERED', async () => {
     const { token } = await registerAndLoginCustomer('bob@example.com', 'Bob');
 
@@ -445,9 +437,6 @@ describe('Critical E2E Workflows (Real PostgreSQL)', () => {
     ).toBeTruthy();
   });
 
-  // =========================================================================
-  // 3. Customer Cancel (Paid Order -> Refund -> Stock & Stats Restored)
-  // =========================================================================
   it('3. Customer cancel (paid): CONFIRMED -> cancel -> REFUND_PENDING -> refund -> CANCELLED, stock restored, totalOrders -1', async () => {
     const { token, userId } = await registerAndLoginCustomer(
       'charlie@example.com',
@@ -540,9 +529,6 @@ describe('Critical E2E Workflows (Real PostgreSQL)', () => {
     expect(userAfterCancel?.totalSpent.toFixed(2)).toBe('0.00');
   });
 
-  // =========================================================================
-  // 4. Payment Timeout Auto-Cancel Cron
-  // =========================================================================
   it('4. Timeout: unpaid order -> paymentExpiresAt past -> cron -> CANCELLED, stock restored', async () => {
     const { token } = await registerAndLoginCustomer(
       'diana@example.com',
@@ -596,9 +582,6 @@ describe('Critical E2E Workflows (Real PostgreSQL)', () => {
     expect(invAfterTimeout?.qtyOnHand).toBe(20);
   });
 
-  // =========================================================================
-  // 5. Oversell Race Condition (Stock = 1, 2 Customers in Parallel)
-  // =========================================================================
   it('5. Oversell race: stock 1, 2 customers parallel -> 1 success (201), 1 fail (400), final stock 0', async () => {
     // Set stock to exactly 1 unit
     await db.inventory.update({
@@ -659,9 +642,6 @@ describe('Critical E2E Workflows (Real PostgreSQL)', () => {
     expect(finalInv?.qtyOnHand).toBe(0);
   });
 
-  // =========================================================================
-  // 6. Webhook Duplicate Delivery Idempotency
-  // =========================================================================
   it('6. Webhook duplicate: same succeeded webhook 2x -> totalOrders +1 only', async () => {
     const { token, userId } = await registerAndLoginCustomer(
       'webhook@example.com',
@@ -730,9 +710,6 @@ describe('Critical E2E Workflows (Real PostgreSQL)', () => {
     expect(user?.totalSpent.toFixed(2)).toBe('11.00');
   });
 
-  // =========================================================================
-  // 7. IDOR Protection (Cross-Customer Order & Address Access -> 404)
-  // =========================================================================
   it('7. IDOR: another user order -> 404; another user address -> 404', async () => {
     const owner = await registerAndLoginCustomer(
       'owner@example.com',
@@ -806,9 +783,6 @@ describe('Critical E2E Workflows (Real PostgreSQL)', () => {
       .expect(404);
   });
 
-  // =========================================================================
-  // 8. Authentication & Authorization Guards (401, 403, Deactivated Token)
-  // =========================================================================
   it('8. Auth: no token -> 401, customer -> admin route -> 403, deactivated user -> 403', async () => {
     // 1) No token -> 401
     await request(app.getHttpServer()).get('/orders/me').expect(401);

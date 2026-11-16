@@ -70,31 +70,19 @@ export class UserService {
       });
   }
 
-  /**
-   * Returns current authenticated user profile.
-   * GET /user/me
-   */
+  /** Returns the current authenticated user's profile. */
   async getProfile(userId: string): Promise<IUserProfileResponse> {
     const user = await this.getUserOrThrow(userId);
     return toUserProfileResponse(user);
   }
 
-  /**
-   * Returns current authenticated user stats (totalOrders, totalSpent, avgRating).
-   * Verified against docs: 01 §22.7, api-reference.md.
-   * GET /user/me/stats
-   */
+  /** Returns the current authenticated user's order and rating statistics. */
   async getStats(userId: string): Promise<IUserStatsResponse> {
     const stats = await this.userDb.getUserStats(userId);
     return toUserStatsResponse(stats);
   }
 
-  /**
-   * Updates authenticated user's profile (`name` and/or `phone`).
-   * Enforces phone uniqueness (409 Conflict).
-   * Verified against docs: 01 §6, api-reference.md.
-   * PUT /user
-   */
+  /** Updates the authenticated user's profile (`name`, `phone`) and enforces phone uniqueness. */
   async updateProfile(
     userId: string,
     dto: UpdateUserProfileDto,
@@ -147,11 +135,7 @@ export class UserService {
     return toUserProfileResponse(updated);
   }
 
-  /**
-   * Customer self-delete (GDPR-style anonymization in a single atomic transaction).
-   * Verified against docs: 01 §6, api-reference.md.
-   * DELETE /user
-   */
+  /** Anonymizes and deactivates a customer account in an atomic transaction. */
   async deleteAccount(userId: string): Promise<void> {
     const user = await this.getUserOrThrow(userId);
 
@@ -175,11 +159,7 @@ export class UserService {
     });
   }
 
-  /**
-   * Admin: Paginated user list with search (name/email/phone), role, isActive, and includeDeleted filters.
-   * Verified against docs: 01 §5, api-reference.md.
-   * GET /user/list
-   */
+  /** Returns a paginated user list for admin view with search and role/status filters. */
   async findAll(query: ListUsersQueryDto): Promise<IUserListResponse> {
     const { data, total, page, limit } = await this.userDb.findManyUsers(query);
 
@@ -189,16 +169,7 @@ export class UserService {
     };
   }
 
-  /**
-   * Admin: Activate or deactivate a customer account.
-   *
-   * Rules (Docs 01 §5):
-   * - Admin cannot change their own status -> 400 BadRequestException
-   * - Target user must exist -> 404 NotFoundException
-   * - Target user must have role CUSTOMER (cannot modify ADMIN) -> 403 ForbiddenException
-   * - Idempotent if status is already set to the requested value
-   * PATCH /user/:id/status
-   */
+  /** Activates or deactivates a customer account (blocks self-modification with 400 and admin targets with 403). */
   async updateStatus(
     targetUserId: string,
     adminId: string,
@@ -240,8 +211,6 @@ export class UserService {
 
     return toUserProfileResponse(updated);
   }
-
-  // --- Notification Preferences (Docs 01 §22.4) ---
 
   async getPreferences(userId: string): Promise<IUserPreferenceResponse> {
     await this.getUserOrThrow(userId);

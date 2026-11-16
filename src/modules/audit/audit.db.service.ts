@@ -26,9 +26,7 @@ export class AuditDbService {
     };
   }
 
-  /**
-   * Persists a single audit log entry.
-   */
+  /** Persists a single audit log entry. */
   async create(data: ICreateAuditData): Promise<AuditLog> {
     return this.db.auditLog.create({
       data: {
@@ -42,11 +40,7 @@ export class AuditDbService {
     });
   }
 
-  /**
-   * Retrieves today's audit activity (UTC day boundary) with optional entityType and actorType filters.
-   * Uses `@@index([createdAt])` and `@@index([entityType, entityId])` for fast bounded queries.
-   * Verified against docs: 01 §2.7, 01 §22.6, 03 §1.
-   */
+  /** Queries today's audit logs (UTC day boundary) with optional entityType and actorType filters. */
   async findMany(query: AuditQueryDto) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;

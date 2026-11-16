@@ -225,7 +225,6 @@ export class InventoryService {
     }
 
     const updated = await this.inventoryDb.runInTransaction(async (tx) => {
-      // 1. Lock inventory row
       await this.inventoryDb.lockInventoryRow(dto.inventoryId, tx);
 
       const inventory = await this.inventoryDb.findById(dto.inventoryId, tx);
@@ -237,7 +236,6 @@ export class InventoryService {
 
       const isBatchTracked = inventory.product.batchTracked;
 
-      // 2. If batch-tracked, require and lock the batch
       if (isBatchTracked) {
         if (!dto.batchId) {
           throw new BadRequestException(
@@ -284,7 +282,6 @@ export class InventoryService {
         );
       }
 
-      // 3. Check and update inventory qtyOnHand
       const newInventoryQty = inventory.qtyOnHand + dto.quantity;
       if (newInventoryQty < 0) {
         throw new BadRequestException(
@@ -298,7 +295,6 @@ export class InventoryService {
         tx,
       );
 
-      // 4. Record the inventory transaction
       const txnType =
         dto.quantity > 0
           ? TransactionType.ADJUSTMENT_INCREASE
@@ -316,7 +312,6 @@ export class InventoryService {
         tx,
       );
 
-      // 5. Refresh stock status
       await this.inventoryDb.refreshInventoryStatus(inventory.id, tx);
 
       const refreshed = await this.inventoryDb.findById(inventory.id, tx);
@@ -383,9 +378,7 @@ export class InventoryService {
     return toInventoryResponse(updated.refreshed);
   }
 
-  /**
-   * Updates inventory parameters: lowStockThreshold or batch expiry date.
-   */
+  /** Updates `lowStockThreshold` or batch expiry date. */
   async update(
     id: string,
     dto: UpdateInventoryDto,
@@ -492,9 +485,7 @@ export class InventoryService {
     return toInventoryResponse(updated);
   }
 
-  /**
-   * Returns a paginated list of inventory summaries with search and status filters.
-   */
+  /** Returns a paginated list of inventory summaries. */
   async findAll(query: InventoryQueryDto): Promise<IInventoryListResponse> {
     const { data, total } = await this.inventoryDb.findMany(query);
     const summaries = data.map(toInventorySummary);
@@ -502,9 +493,7 @@ export class InventoryService {
     return { data: summaries, meta };
   }
 
-  /**
-   * Returns complete inventory details by inventory ID.
-   */
+  /** Returns inventory details by ID. */
   async findOne(id: string): Promise<IInventoryResponse> {
     const inventory = await this.inventoryDb.findById(id);
     if (!inventory) {
@@ -513,9 +502,7 @@ export class InventoryService {
     return toInventoryResponse(inventory);
   }
 
-  /**
-   * Returns active products that do not have an inventory row yet.
-   */
+  /** Returns active products that do not yet have an inventory record. */
   async findAvailableProducts(
     query: PaginationDto,
   ): Promise<IAvailableProductListResponse> {
@@ -528,9 +515,7 @@ export class InventoryService {
     return { data: products, meta };
   }
 
-  /**
-   * Returns paginated audit transactions across inventory records.
-   */
+  /** Returns paginated inventory ledger transactions. */
   async findTransactions(
     query: InventoryTransactionsQueryDto,
   ): Promise<ITransactionListResponse> {
@@ -540,9 +525,7 @@ export class InventoryService {
     return { data: transactions, meta };
   }
 
-  /**
-   * Returns paginated transactions specifically for one inventory record.
-   */
+  /** Returns paginated ledger transactions for a single inventory record. */
   async findTransactionsByInventoryId(
     inventoryId: string,
     query: PaginationDto,
@@ -565,12 +548,7 @@ export class InventoryService {
     return { data: transactions, meta };
   }
 
-  /**
-   * Sweeps expired ACTIVE batches (expiryDate < today), marks them EXPIRED,
-   * deducts inventory on-hand stock, records ADJUSTMENT_DECREASE ledger transaction,
-   * and refreshes stock status in an interactive transaction with row locks.
-   * Guarded updates ensure duplicate/concurrent cron executions are safe and idempotent.
-   */
+  /** Marks expired active batches as `EXPIRED`, deducts stock, and refreshes stock status. */
   async processBatchExpiry(): Promise<{
     processed: number;
     expiredBatches: string[];

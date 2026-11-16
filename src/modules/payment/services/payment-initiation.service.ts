@@ -24,14 +24,7 @@ import { PaymentDbService } from '../payment.db.service';
 import { IInitiatePaymentResponse } from '../types';
 
 /**
- * Handles POST /payments/initiate.
- *
- * Rules (Docs 01 §15):
- * 1. Order must belong to the authenticated customer and be PENDING.
- * 2. Order total must be > 0.
- * 3. If an UNPAID payment already exists, reuse it (idempotent initiation).
- * 4. Amount set from server's order.total — client amount never trusted.
- * 5. Payment row: method CREDIT_CARD, provider MOCK, status UNPAID.
+ * Initiates a payment intent for a customer's `PENDING` order, reusing any existing `UNPAID` payment.
  */
 @Injectable()
 export class PaymentInitiationService {
@@ -48,30 +41,28 @@ export class PaymentInitiationService {
     user: AuthUser,
     orderId: string,
   ): Promise<IInitiatePaymentResponse> {
-    // 1. Load order — ownership enforced by filtering on userId
     const order = await this.db.order.findFirst({
       where: { id: orderId, userId: user.id },
-      select: { id: true, orderNumber: true, status: true, total: true, userId: true },
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        total: true,
+        userId: true,
+      },
     });
 
-    if (!order) {
+    if (!order || order.status !== OrderStatus.PENDING) {
+      // Return 404 for non-PENDING orders to avoid leaking order state
       throw new NotFoundException('Order not found.');
     }
 
-    if (order.status !== OrderStatus.PENDING) {
-      throw new NotFoundException('Order not found.');
-      // Returns 404 intentionally: a non-PENDING order doesn't accept payment.
-      // This prevents leaking whether the order exists in another state.
-    }
-
-    // 2. Total > 0 guard
     if (new Prisma.Decimal(order.total).lte(0)) {
       throw new BadRequestException(
         'Cannot initiate payment for a zero-value order.',
       );
     }
 
-    // 3. Idempotency: reuse existing UNPAID payment
     const existing = await this.paymentDb.findUnpaidByOrderId(order.id);
     if (existing) {
       this.logger.log(
@@ -80,7 +71,6 @@ export class PaymentInitiationService {
       return toInitiatePaymentResponse(existing);
     }
 
-    // 4. Create payment intent on gateway (amount in pence)
     const amountDecimal = new Prisma.Decimal(order.total);
     const amountPence = amountDecimal.mul(100).toDecimalPlaces(0).toNumber();
 
@@ -89,7 +79,6 @@ export class PaymentInitiationService {
       amountPence,
     );
 
-    // 5. Persist payment row
     const payment = await this.paymentDb.createPayment({
       orderId: order.id,
       amount: amountDecimal,
@@ -102,7 +91,6 @@ export class PaymentInitiationService {
       `Payment initiated: ${payment.id} (${gatewayRef}) for order ${order.orderNumber}`,
     );
 
-    // Audit log (fire-and-forget)
     this.auditService
       .log({
         entityType: 'PAYMENT',

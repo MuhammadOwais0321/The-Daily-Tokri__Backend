@@ -24,8 +24,7 @@ export interface IPeriodRange {
 @Injectable()
 export class DashboardPeriodService {
   /**
-   * Computes UTC start/end timestamps for the requested period and its
-   * matching previous comparison period (Docs 01 §22.5, 02 §2.1, 13 §Advanced).
+   * Computes UTC start/end timestamps for the requested period and its previous comparison window.
    */
   resolvePeriodRange(
     period: DashboardPeriod = 'today',

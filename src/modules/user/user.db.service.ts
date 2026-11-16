@@ -44,9 +44,7 @@ export class UserDbService {
     });
   }
 
-  /**
-   * Checks in a single query whether another user already uses the given phone number.
-   */
+  /** Checks whether another user already uses the given phone number. */
   async findPhoneConflict(
     phone: string,
     excludeUserId: string,
@@ -174,9 +172,7 @@ export class UserDbService {
     }
   }
 
-  /**
-   * Updates user's profile fields (name, phone) and maps phone unique conflicts to 409 (Docs 01 §6).
-   */
+  /** Updates user profile fields (`name`, `phone`) and maps phone uniqueness conflicts to 409. */
   async updateProfile(id: string, data: Prisma.UserUpdateInput): Promise<User> {
     try {
       return await this.databaseService.user.update({
@@ -192,9 +188,6 @@ export class UserDbService {
     }
   }
 
-  /**
-   * Updates customer active status (Docs 01 §5).
-   */
   async updateStatus(id: string, isActive: boolean): Promise<User> {
     try {
       return await this.databaseService.user.update({
@@ -206,9 +199,7 @@ export class UserDbService {
     }
   }
 
-  /**
-   * Paginated list of users for admin with search, role, isActive, and includeDeleted filters (Docs 01 §5).
-   */
+  /** Queries paginated users with search, role, active status, and `includeDeleted` filters. */
   async findManyUsers(query: ListUsersQueryDto) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
@@ -216,7 +207,6 @@ export class UserDbService {
 
     const where: Prisma.UserWhereInput = {};
 
-    // Default includeDeleted = false (Docs 01 §5)
     if (!query.includeDeleted) {
       where.deletedAt = null;
     }
@@ -251,11 +241,7 @@ export class UserDbService {
   }
 
   /**
-   * GDPR-style self-deletion in a single atomic transaction (Docs 01 §6):
-   * - Deletes addresses, cart (cascades cart_items), notifications, preferences, and verification codes
-   * - Anonymizes email (`[DELETED] <id>:<email>`), clears phone, replaces passwordHash with random hash,
-   *   sets isActive=false and deletedAt=now
-   * - Preserves orders and reviews for accounting and product history
+   * Anonymizes and deactivates a customer account in a single transaction while preserving orders and reviews.
    */
   async anonymizeAndDeleteAccount(
     user: Pick<User, 'id' | 'email'>,
@@ -288,10 +274,7 @@ export class UserDbService {
     }
   }
 
-  /**
-   * Computes user profile stats (totalOrders, totalSpent, avgRating across approved reviews) in parallel.
-   * Verified against docs: 01 §22.7, api-reference.md.
-   */
+  /** Computes user profile stats (`totalOrders`, `totalSpent`, and `avgRating` across approved reviews). */
   async getUserStats(userId: string): Promise<{
     totalOrders: number;
     totalSpent: Prisma.Decimal;
@@ -330,8 +313,6 @@ export class UserDbService {
       avgRating,
     };
   }
-
-  // --- User Notification Preferences (Docs 01 §22.4) ---
 
   async findOrCreateDefaultPreferences(
     userId: string,

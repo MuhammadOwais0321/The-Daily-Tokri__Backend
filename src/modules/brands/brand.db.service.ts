@@ -24,9 +24,7 @@ export class BrandDbService {
     });
   }
 
-  /**
-   * Checks in a single query whether another brand already uses the given name (case-insensitive) or slug.
-   */
+  /** Checks whether another brand already uses the given name or slug. */
   async findConflictByNameOrSlug(
     name: string,
     slug: string,

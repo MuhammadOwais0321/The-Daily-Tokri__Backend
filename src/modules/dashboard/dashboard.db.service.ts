@@ -21,10 +21,7 @@ export class DashboardDbService {
 
   constructor(private readonly db: DatabaseService) {}
 
-  /**
-   * Reusable helper to aggregate KPI metrics for any UTC date window (current or previous period).
-   * Uses a single `order.aggregate` query for paid count, revenue sum, and average order value.
-   */
+  /** Aggregates order, revenue, and customer KPI metrics for a UTC date window. */
   private async fetchPeriodMetrics(
     start: Date,
     end: Date,
@@ -63,11 +60,7 @@ export class DashboardDbService {
     };
   }
 
-  /**
-   * Aggregates order status breakdown for the selected period and current store-wide
-   * inventory/catalog snapshots in parallel using DB `groupBy` and `count`.
-   * Verified against docs: 01 §22.5, 11 §5.
-   */
+  /** Aggregates order status breakdown and current store-wide inventory/catalog counts in parallel. */
   private async fetchStoreSnapshot(
     currentStart: Date,
     currentEnd: Date,

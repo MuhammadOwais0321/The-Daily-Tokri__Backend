@@ -8,11 +8,6 @@ import { PaymentStatus, Prisma } from '@prisma/client';
 import { DatabaseService } from '../../database/database.service';
 import { ICreatePaymentData, PaymentWithOrder, paymentInclude } from './types';
 
-/**
- * All Prisma queries for the payment domain live here.
- * Business logic stays in the service layer.
- * Verified against docs: 04 §5.
- */
 @Injectable()
 export class PaymentDbService {
   private readonly logger = new Logger(PaymentDbService.name);
@@ -25,11 +20,7 @@ export class PaymentDbService {
     return tx ?? this.db;
   }
 
-  /**
-   * Finds the latest UNPAID payment for an order.
-   * Used during initiate to reuse an existing payment intent (idempotency).
-   * Verified against docs: 01 §15.
-   */
+  /** Finds the latest `UNPAID` payment for an order (used for idempotent payment initiation). */
   async findUnpaidByOrderId(
     orderId: string,
     tx?: Prisma.TransactionClient,
@@ -42,10 +33,7 @@ export class PaymentDbService {
     });
   }
 
-  /**
-   * Finds a payment by its gateway reference (gatewayRef @unique).
-   * Used by webhook handler to locate the payment record.
-   */
+  /** Finds a payment by its unique `gatewayRef`. */
   async findByGatewayRef(
     gatewayRef: string,
     tx?: Prisma.TransactionClient,
@@ -57,10 +45,7 @@ export class PaymentDbService {
     });
   }
 
-  /**
-   * Finds a payment by its ID and validates it belongs to the order.
-   * Used by mock-complete endpoint for ownership enforcement.
-   */
+  /** Finds a payment by ID and order ID. */
   async findByIdAndOrderId(
     paymentId: string,
     orderId: string,
@@ -73,10 +58,7 @@ export class PaymentDbService {
     });
   }
 
-  /**
-   * Finds a payment by its ID and validates it belongs to an order owned by the user.
-   * Used for IDOR protection on payment endpoints (e.g. mock-complete).
-   */
+  /** Finds a payment by ID scoped to an order owned by `userId`. */
   async findByIdAndUserId(
     paymentId: string,
     userId: string,
@@ -92,11 +74,7 @@ export class PaymentDbService {
     });
   }
 
-  /**
-   * Finds all REFUND_PENDING orders that need their payment refunded.
-   * Used by the refund retry cron to pick up stalled refunds.
-   * Verified against docs: 01 §20, 11 §6.
-   */
+  /** Finds `REFUND_PENDING` orders along with their latest `PAID` payment for retry processing. */
   async findRefundPendingOrders(
     limit: number = 20,
     tx?: Prisma.TransactionClient,
@@ -107,7 +85,12 @@ export class PaymentDbService {
       orderNumber: string;
       total: Prisma.Decimal;
       confirmedAt: Date | null;
-      payments: Array<{ id: string; gatewayRef: string; status: PaymentStatus; amount: Prisma.Decimal }>;
+      payments: Array<{
+        id: string;
+        gatewayRef: string;
+        status: PaymentStatus;
+        amount: Prisma.Decimal;
+      }>;
     }>
   > {
     const client = this.getClient(tx);
@@ -130,12 +113,7 @@ export class PaymentDbService {
     });
   }
 
-  /**
-   * Creates a new payment record (UNPAID) in the database.
-   * gatewayRef @unique: if two parallel calls race, the second gets a 409
-   * which is caught and surfaced as a ConflictException.
-   * Verified against docs: 01 §15.
-   */
+  /** Creates a new `UNPAID` payment record. */
   async createPayment(
     data: ICreatePaymentData,
     tx?: Prisma.TransactionClient,
@@ -165,23 +143,17 @@ export class PaymentDbService {
       this.logger.error(
         `Failed to create payment record: ${(err as Error).message}`,
       );
-      throw new InternalServerErrorException('Failed to create payment record.');
+      throw new InternalServerErrorException(
+        'Failed to create payment record.',
+      );
     }
   }
 
-  /**
-   * Transitions payment from UNPAID/FAILED → PAID using an optimistic concurrency guard.
-   * Also updates order status to CONFIRMED + paymentStatus PAID, sets confirmedAt,
-   * and increments user.totalOrders + totalSpent atomically in the same transaction.
-   *
-   * Returns true if the update actually changed rows; false = already processed (skip).
-   * Verified against docs: 01 §16 (payment_intent.succeeded), 01 §2.9.
-   */
+  /** Transitions payment from `UNPAID`/`FAILED` to `PAID` using a guarded update. */
   async confirmPaymentInTx(
     gatewayRef: string,
     tx: Prisma.TransactionClient,
   ): Promise<{ updated: boolean; payment: PaymentWithOrder | null }> {
-    // Guarded update: only transitions from UNPAID or FAILED → PAID
     const result = await tx.payment.updateMany({
       where: {
         gatewayRef,
@@ -194,11 +166,9 @@ export class PaymentDbService {
     });
 
     if (result.count === 0) {
-      // Already PAID, CANCELED, or REFUNDED — idempotent skip
       return { updated: false, payment: null };
     }
 
-    // Fetch updated payment with order data
     const payment = await tx.payment.findUnique({
       where: { gatewayRef },
       include: paymentInclude,
@@ -208,12 +178,8 @@ export class PaymentDbService {
   }
 
   /**
-   * Transitions payment from PAID → REFUNDED using a guarded update.
-   * Also finalises order status: REFUND_PENDING → CANCELLED, paymentStatus REFUNDED.
-   * Decrements user.totalSpent by order.total.
-   *
-   * Returns true if rows changed; false = already refunded (safe to skip/retry).
-   * Verified against docs: 01 §20, 01 §16 (charge.refunded handler).
+   * Guarded refund transition (`PAID` -> `REFUNDED`): marks order `CANCELLED` + `REFUNDED`
+   * and decrements `user.totalSpent` if the order was previously confirmed.
    */
   async processRefundInTx(
     paymentId: string,
@@ -223,7 +189,6 @@ export class PaymentDbService {
     isConfirmed: boolean,
     tx: Prisma.TransactionClient,
   ): Promise<boolean> {
-    // Guarded update: only PAID → REFUNDED
     const result = await tx.payment.updateMany({
       where: { id: paymentId, status: PaymentStatus.PAID },
       data: {
@@ -233,11 +198,9 @@ export class PaymentDbService {
     });
 
     if (result.count === 0) {
-      // Already refunded — idempotent, safe to return false
       return false;
     }
 
-    // Finalise order: REFUND_PENDING → CANCELLED, paymentStatus → REFUNDED
     await tx.order.updateMany({
       where: { id: orderId, status: 'REFUND_PENDING' },
       data: {
@@ -247,7 +210,6 @@ export class PaymentDbService {
       },
     });
 
-    // Decrement user totalSpent only if the order was confirmed and spent was credited
     if (isConfirmed) {
       await tx.user.update({
         where: { id: userId },
@@ -260,11 +222,7 @@ export class PaymentDbService {
     return true;
   }
 
-  /**
-   * Marks payment as FAILED (from UNPAID). Used by payment_failed webhook event.
-   * Order remains PENDING so customer can retry payment.
-   * Verified against docs: 01 §16.
-   */
+  /** Marks an `UNPAID` payment as `FAILED`. */
   async markPaymentFailed(
     gatewayRef: string,
     failureReason?: string,
@@ -281,10 +239,7 @@ export class PaymentDbService {
     return result.count > 0;
   }
 
-  /**
-   * Marks payment as CANCELED (from UNPAID). Used by payment_intent.canceled webhook.
-   * Verified against docs: 01 §16.
-   */
+  /** Marks an `UNPAID` payment as `CANCELED`. */
   async markPaymentCanceled(
     gatewayRef: string,
     tx?: Prisma.TransactionClient,
@@ -297,9 +252,6 @@ export class PaymentDbService {
     return result.count > 0;
   }
 
-  /**
-   * Runs an interactive DB transaction.
-   */
   async runInTransaction<T>(
     fn: (tx: Prisma.TransactionClient) => Promise<T>,
   ): Promise<T> {

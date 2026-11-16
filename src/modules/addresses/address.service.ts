@@ -11,11 +11,7 @@ export class AddressService {
 
   constructor(private readonly addressDb: AddressDbService) {}
 
-  /**
-   * Creates a new address for the user.
-   * If it's the user's first address or isDefault is true, marks it as default
-   * and atomically unsets any existing default address.
-   */
+  /** Creates an address and marks it as default if it is the user's first or `isDefault` is true. */
   async create(
     userId: string,
     dto: CreateAddressDto,
@@ -52,18 +48,13 @@ export class AddressService {
     });
   }
 
-  /**
-   * Retrieves all addresses for the authenticated user (default address first).
-   */
+  /** Lists all addresses for the authenticated user (default first). */
   async findAll(userId: string): Promise<IAddressResponse[]> {
     const addresses = await this.addressDb.findManyByUserId(userId);
     return addresses.map(toAddressResponse);
   }
 
-  /**
-   * Retrieves an address by ID for the authenticated user.
-   * Scoped to { id, userId } to prevent IDOR existence leakage (returns 404 if not found).
-   */
+  /** Retrieves an address scoped to `{ id, userId }` (returns 404 if not owned). */
   async findOne(id: string, userId: string): Promise<IAddressResponse> {
     const address = await this.addressDb.findByIdAndUserId(id, userId);
     if (!address) {
@@ -72,10 +63,7 @@ export class AddressService {
     return toAddressResponse(address);
   }
 
-  /**
-   * Updates an existing address.
-   * If isDefault is set to true, unsets previous defaults in an atomic transaction.
-   */
+  /** Updates an address and rotates the default flag atomically when changed. */
   async update(
     id: string,
     userId: string,
@@ -147,10 +135,7 @@ export class AddressService {
     });
   }
 
-  /**
-   * Deletes an address.
-   * If the deleted address was default, automatically promotes the newest remaining address to default.
-   */
+  /** Deletes an address and promotes the newest remaining address if the deleted one was default. */
   async delete(id: string, userId: string): Promise<void> {
     const existing = await this.addressDb.findByIdAndUserId(id, userId);
     if (!existing) {
@@ -160,7 +145,6 @@ export class AddressService {
     await this.addressDb.runInTransaction(async (tx) => {
       await this.addressDb.delete(id, userId, tx);
 
-      // Promote newest remaining address to default if deleted address was default
       if (existing.isDefault) {
         const newest = await this.addressDb.findNewestByUserId(userId, id, tx);
         if (newest) {
@@ -180,10 +164,7 @@ export class AddressService {
     this.logger.log(`Address ${id} deleted for user ${userId}`);
   }
 
-  /**
-   * Sets an address as the default address.
-   * Idempotent: returns existing address if already default.
-   */
+  /** Marks an address as the user's default address (idempotent). */
   async setDefault(id: string, userId: string): Promise<IAddressResponse> {
     const target = await this.addressDb.findByIdAndUserId(id, userId);
     if (!target) {

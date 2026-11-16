@@ -23,30 +23,21 @@ import { ReviewService } from './review.service';
 export class AdminReviewController {
   constructor(private readonly reviewService: ReviewService) {}
 
-  /**
-   * Admin: List all reviews with moderation filters and pagination.
-   * GET /admin/reviews
-   */
+  /** List all reviews with moderation filters and pagination. */
   @SkipThrottle()
   @Get()
   findAll(@Query() query: ReviewQueryDto) {
     return this.reviewService.findAdminAll(query);
   }
 
-  /**
-   * Admin: Get single review detail by UUID.
-   * GET /admin/reviews/:id
-   */
+  /** Get single review detail by UUID. */
   @SkipThrottle()
   @Get(':id')
   findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.reviewService.findAdminOne(id);
   }
 
-  /**
-   * Admin: Moderate review status (APPROVED / REJECTED).
-   * PATCH /admin/reviews/:id/status
-   */
+  /** Moderate review status (`APPROVED` or `REJECTED`). */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Patch(':id/status')
   moderateStatus(
@@ -57,10 +48,7 @@ export class AdminReviewController {
     return this.reviewService.moderateStatus(id, admin, dto);
   }
 
-  /**
-   * Admin: Add or update reply on a review (max 500 chars).
-   * PATCH /admin/reviews/:id/reply
-   */
+  /** Add or update admin reply on a review. */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Patch(':id/reply')
   reply(
@@ -71,10 +59,7 @@ export class AdminReviewController {
     return this.reviewService.replyToReview(id, admin, dto);
   }
 
-  /**
-   * Admin: Delete reply on a review (idempotent).
-   * DELETE /admin/reviews/:id/reply
-   */
+  /** Delete admin reply on a review. */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Delete(':id/reply')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -85,10 +70,7 @@ export class AdminReviewController {
     return this.reviewService.removeAdminReply(id, admin);
   }
 
-  /**
-   * Admin: Delete any review.
-   * DELETE /admin/reviews/:id
-   */
+  /** Delete any review. */
   @Throttle(RATE_LIMITS.ADMIN_WRITE)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)

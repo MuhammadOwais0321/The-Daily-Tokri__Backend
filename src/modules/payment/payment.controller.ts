@@ -12,10 +12,7 @@ import { CurrentUser, Roles } from '../../common/decorators';
 import { UserRole } from '../../common/enums';
 import { RATE_LIMITS } from '../../config/rate-limit.config';
 import type { AuthUser } from '../auth/types';
-import {
-  InitiatePaymentDto,
-  MockCompletePaymentDto,
-} from './dto';
+import { InitiatePaymentDto, MockCompletePaymentDto } from './dto';
 import { PaymentService } from './payment.service';
 
 @Throttle(RATE_LIMITS.PAYMENT)
@@ -24,25 +21,14 @@ import { PaymentService } from './payment.service';
 export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
 
-  /**
-   * Initiates payment for customer's PENDING order.
-   * POST /payments/initiate
-   * Rate limited: 5 requests / min (Docs 01 §15).
-   */
+  /** Initiates payment for a customer's `PENDING` order. */
   @Post('initiate')
   @HttpCode(HttpStatus.OK)
-  initiate(
-    @CurrentUser() user: AuthUser,
-    @Body() dto: InitiatePaymentDto,
-  ) {
+  initiate(@CurrentUser() user: AuthUser, @Body() dto: InitiatePaymentDto) {
     return this.paymentService.initiate(user, dto);
   }
 
-  /**
-   * Mock-completes a payment (development / demo gateway simulator).
-   * POST /payments/:id/mock-complete
-   * Scoped strictly to authenticated customer (IDOR protection).
-   */
+  /** Simulates payment completion via the mock gateway (scoped to the authenticated customer). */
   @Post(':id/mock-complete')
   @HttpCode(HttpStatus.OK)
   mockComplete(

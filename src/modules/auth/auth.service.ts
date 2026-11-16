@@ -146,7 +146,6 @@ export class AuthService {
       this.logger.warn(`Failed to send verification email to ${user.email}`);
     }
 
-    // Fire-and-forget audit log
     this.auditService
       .log({
         entityType: 'USER',

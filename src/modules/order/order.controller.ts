@@ -24,20 +24,14 @@ import { OrderService } from './order.service';
 export class OrderController {
   constructor(private readonly orderService: OrderService) {}
 
-  /**
-   * Places a new order from items currently in the customer's cart.
-   * POST /orders
-   */
+  /** Places a new order from items in the customer's cart. */
   @Post()
   @HttpCode(HttpStatus.CREATED)
   createOrder(@CurrentUser() user: AuthUser, @Body() dto: CreateOrderDto) {
     return this.orderService.create(user, dto);
   }
 
-  /**
-   * Lists customer's own orders with pagination and filters.
-   * GET /orders/me
-   */
+  /** Lists the customer's own orders with pagination and filters. */
   @Get('me')
   findMyOrders(
     @CurrentUser() user: AuthUser,
@@ -46,10 +40,7 @@ export class OrderController {
     return this.orderService.findCustomerOrders(user.id, query);
   }
 
-  /**
-   * Gets detail of customer's own order by ID.
-   * GET /orders/me/:id
-   */
+  /** Retrieves details of the customer's own order by ID. */
   @Get('me/:id')
   findMyOrderDetail(
     @CurrentUser() user: AuthUser,
@@ -58,10 +49,7 @@ export class OrderController {
     return this.orderService.findCustomerOrderDetail(user.id, id);
   }
 
-  /**
-   * Cancels customer's own order (allowed if PENDING or CONFIRMED).
-   * PATCH /orders/me/:id/cancel
-   */
+  /** Cancels the customer's own order (allowed when `PENDING` or `CONFIRMED`). */
   @Patch('me/:id/cancel')
   cancelMyOrder(
     @CurrentUser() user: AuthUser,

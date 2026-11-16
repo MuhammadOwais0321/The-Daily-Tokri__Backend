@@ -25,14 +25,13 @@ async function main() {
     process.exit(1);
   }
 
-  // 1. Single Admin Policy Check: Check if an ADMIN already exists in the database
+  // Enforce single-admin policy
   const existingAdmin = await prisma.user.findFirst({
     where: {
       role: UserRole.ADMIN,
     },
   });
 
-  // 2. Hash password using bcrypt with cost 12 (as per security requirements)
   console.log('🔒 Hashing admin password with bcrypt (cost 12)...');
   const passwordHash = await bcrypt.hash(adminPassword, 12);
 
@@ -57,11 +56,11 @@ async function main() {
     console.log(
       `⚠️  An Admin account already exists in database with a different email (${existingAdmin.email}, ID: ${existingAdmin.id}).`,
     );
-    console.log('ℹ️  Skipping creation as per Single Admin policy (docs 06 §5).');
+    console.log('ℹ️  Skipping creation as per Single Admin policy.');
     return;
   }
 
-  // 3. Check if user already exists (e.g. was registered as Customer during testing)
+  // Upgrade existing user if registered with the admin email, otherwise create a new admin
   const userWithSameEmail = await prisma.user.findUnique({
     where: {
       email: adminEmail,
@@ -84,7 +83,6 @@ async function main() {
       },
     });
   } else {
-    // 4. Create new single Admin user
     admin = await prisma.user.create({
       data: {
         name: adminName,
@@ -97,7 +95,6 @@ async function main() {
     });
   }
 
-  // 5. Ensure default preferences exist for the admin
   await prisma.userPreference.upsert({
     where: { userId: admin.id },
     create: {

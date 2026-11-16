@@ -126,16 +126,13 @@ export interface IOrderResponse {
   payments?: IOrderPaymentResponse[];
 }
 
-/**
- * Transition rules enforced by OrderStatusService for Admin actions.
- * Verified against docs: 01 §19.
- */
+/** Allowed admin fulfillment transitions per order status. */
 export const ADMIN_ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  [OrderStatus.PENDING]: [], // Only payment webhook confirms
+  [OrderStatus.PENDING]: [], // Confirmed only via payment webhook
   [OrderStatus.CONFIRMED]: [OrderStatus.PROCESSING],
   [OrderStatus.PROCESSING]: [
-    OrderStatus.READY_FOR_PICKUP, // ONLY valid for PICKUP orders
-    OrderStatus.READY_FOR_DELIVERY, // ONLY valid for DELIVERY orders
+    OrderStatus.READY_FOR_PICKUP,
+    OrderStatus.READY_FOR_DELIVERY,
   ],
   [OrderStatus.READY_FOR_PICKUP]: [OrderStatus.DELIVERED],
   [OrderStatus.READY_FOR_DELIVERY]: [OrderStatus.DELIVERED],
@@ -144,19 +141,13 @@ export const ADMIN_ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.REFUND_PENDING]: [],
 };
 
-/**
- * Statuses from which a customer is permitted to cancel their own order.
- * Verified against docs: 01 §18.
- */
+/** Statuses from which a customer may cancel their own order. */
 export const CUSTOMER_CANCELLABLE_STATUSES: OrderStatus[] = [
   OrderStatus.PENDING,
   OrderStatus.CONFIRMED,
 ];
 
-/**
- * Statuses from which an admin is permitted to cancel an order.
- * Verified against docs: 01 §20.
- */
+/** Statuses from which an admin may cancel an order. */
 export const ADMIN_CANCELLABLE_STATUSES: OrderStatus[] = [
   OrderStatus.PENDING,
   OrderStatus.CONFIRMED,
