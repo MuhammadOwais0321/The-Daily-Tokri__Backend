@@ -25,6 +25,8 @@ import { NotificationModule } from './modules/notification/notification.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { HealthModule } from './modules/health/health.module';
+import { ThemeModule } from './modules/theme/theme.module';
+import { BannerModule } from './modules/banners/banner.module';
 
 @Module({
   imports: [
@@ -51,6 +53,8 @@ import { HealthModule } from './modules/health/health.module';
     DashboardModule,
     AuditModule,
     HealthModule,
+    ThemeModule,
+    BannerModule,
   ],
   controllers: [AppController],
   providers: [

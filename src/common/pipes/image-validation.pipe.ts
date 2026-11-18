@@ -1,9 +1,4 @@
-import {
-  ArgumentMetadata,
-  BadRequestException,
-  Injectable,
-  PipeTransform,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, PipeTransform } from '@nestjs/common';
 import 'multer';
 
 export const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -61,24 +56,24 @@ export function isAllowedImageMagicBytes(buffer: Buffer): boolean {
 
 @Injectable()
 export class ImageValidationPipe implements PipeTransform {
-  transform(
-    file: Express.Multer.File | Express.Multer.File[],
-    metadata: ArgumentMetadata,
-  ) {
+  constructor(private readonly maxSize: number = MAX_IMAGE_SIZE) {}
+
+  transform(file: Express.Multer.File | Express.Multer.File[]) {
     if (!file || (Array.isArray(file) && file.length === 0)) {
       throw new BadRequestException('Image file is required');
     }
 
     const files = Array.isArray(file) ? file : [file];
+    const maxMb = Math.round((this.maxSize / (1024 * 1024)) * 10) / 10;
 
     for (const f of files) {
       if (!f) {
         throw new BadRequestException('Image file is required');
       }
 
-      if (f.size > MAX_IMAGE_SIZE) {
+      if (f.size > this.maxSize) {
         throw new BadRequestException(
-          'Image file size exceeds the 5 MB maximum limit',
+          `Image file size exceeds the ${maxMb} MB maximum limit`,
         );
       }
 
