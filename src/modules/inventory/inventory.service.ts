@@ -1,14 +1,17 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { InventoryDbService } from './inventory.db.service';
 import { ProductsDbService } from '../products/products.db.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationService } from '../notification/notification.service';
+import { BatchService } from '../batch/batch.service';
 import {
   CreateInventoryDto,
   InventoryAdjustmentDto,
@@ -31,12 +34,10 @@ import {
 import {
   AdjustmentReason,
   AuditActorType,
-  BatchStatus,
   StockStatus,
   TransactionType,
 } from '@prisma/client';
 import { buildMeta, PaginationDto } from '../../common/pagination';
-import * as crypto from 'crypto';
 
 @Injectable()
 export class InventoryService {
@@ -47,22 +48,9 @@ export class InventoryService {
     private readonly productsDb: ProductsDbService,
     private readonly auditService: AuditService,
     private readonly notificationService: NotificationService,
+    @Inject(forwardRef(() => BatchService))
+    private readonly batchService: BatchService,
   ) {}
-
-  /** Formats date as YYYYMMDD */
-  private formatYearMonthDay(date: Date): string {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}${m}${d}`;
-  }
-
-  /** Generates batch code (BATCH-YYYYMMDD-XXXXXXXXXXXX) */
-  private generateBatchCode(): string {
-    const dateStr = this.formatYearMonthDay(new Date());
-    const randHex = crypto.randomBytes(6).toString('hex').toUpperCase();
-    return `BATCH-${dateStr}-${randHex}`;
-  }
 
   /** Creates inventory record and initial batch if batch-tracked */
   async create(
@@ -90,18 +78,9 @@ export class InventoryService {
           'Batch expiry date is required for a batch-tracked product',
         );
       }
-      expiryDate = new Date(dto.batch.expiryDate);
-      if (isNaN(expiryDate.getTime())) {
-        throw new BadRequestException('Invalid batch expiry date provided');
-      }
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (expiryDate < today) {
-        throw new BadRequestException(
-          'Expiry date must be today or a future date',
-        );
-      }
+      expiryDate = this.batchService.parseFutureOrTodayExpiryDate(
+        dto.batch.expiryDate,
+      );
     } else if (dto.batch) {
       throw new BadRequestException(
         'Batch details cannot be provided for a non-batch-tracked product',
@@ -123,17 +102,11 @@ export class InventoryService {
       );
 
       if (product.batchTracked && expiryDate) {
-        const batchCode = this.generateBatchCode();
-        await this.inventoryDb.createBatch(
-          {
-            inventoryId: inventory.id,
-            batchCode,
-            qtyOnHand: initialQty,
-            expiryDate,
-            status: BatchStatus.ACTIVE,
-          },
-          tx,
-        );
+        await this.batchService.createInitialBatchInTx(tx, {
+          inventoryId: inventory.id,
+          qtyOnHand: initialQty,
+          expiryDate,
+        });
       }
 
       if (initialQty > 0) {
@@ -237,49 +210,11 @@ export class InventoryService {
       const isBatchTracked = inventory.product.batchTracked;
 
       if (isBatchTracked) {
-        if (!dto.batchId) {
-          throw new BadRequestException(
-            'Batch ID is required for adjusting inventory of a batch-tracked product',
-          );
-        }
-
-        await this.inventoryDb.lockBatchRow(dto.batchId, tx);
-
-        const batch = await this.inventoryDb.findBatchById(dto.batchId, tx);
-        if (!batch || batch.inventoryId !== inventory.id) {
-          throw new NotFoundException(
-            `Batch with ID "${dto.batchId}" not found for this inventory`,
-          );
-        }
-
-        if (batch.status !== BatchStatus.ACTIVE) {
-          throw new BadRequestException(
-            `Cannot adjust batch with status "${batch.status}". Only ACTIVE batches can be adjusted.`,
-          );
-        }
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (new Date(batch.expiryDate) < today) {
-          throw new BadRequestException('Cannot adjust an expired batch');
-        }
-
-        const newBatchQty = batch.qtyOnHand + dto.quantity;
-        if (newBatchQty < 0) {
-          throw new BadRequestException(
-            `Insufficient batch quantity. Current batch stock: ${batch.qtyOnHand}, Requested adjustment: ${dto.quantity}`,
-          );
-        }
-
-        await this.inventoryDb.updateBatch(
-          batch.id,
-          {
-            qtyOnHand: newBatchQty,
-            status:
-              newBatchQty === 0 ? BatchStatus.DEPLETED : BatchStatus.ACTIVE,
-          },
-          tx,
-        );
+        await this.batchService.adjustBatchInTx(tx, {
+          inventoryId: inventory.id,
+          batchId: dto.batchId,
+          quantity: dto.quantity,
+        });
       }
 
       const newInventoryQty = inventory.qtyOnHand + dto.quantity;
@@ -397,34 +332,18 @@ export class InventoryService {
         );
       }
 
-      parsedExpiry = new Date(dto.expiryDate);
-      if (isNaN(parsedExpiry.getTime())) {
-        throw new BadRequestException('Invalid batch expiry date provided');
-      }
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (parsedExpiry < today) {
-        throw new BadRequestException(
-          'Expiry date must be today or a future date',
-        );
-      }
-
-      const batch = await this.inventoryDb.findBatchById(dto.batchId);
-      if (!batch || batch.inventoryId !== id) {
-        throw new NotFoundException(
-          `Batch with ID "${dto.batchId}" not found for this inventory`,
-        );
-      }
+      parsedExpiry = this.batchService.parseFutureOrTodayExpiryDate(
+        dto.expiryDate,
+      );
     }
 
     const updated = await this.inventoryDb.runInTransaction(async (tx) => {
       if (dto.batchId && parsedExpiry) {
-        await this.inventoryDb.updateBatch(
-          dto.batchId,
-          { expiryDate: parsedExpiry },
-          tx,
-        );
+        await this.batchService.updateBatchExpiryInTx(tx, {
+          inventoryId: id,
+          batchId: dto.batchId,
+          expiryDate: parsedExpiry,
+        });
       }
 
       if (dto.lowStockThreshold !== undefined) {
@@ -546,171 +465,5 @@ export class InventoryService {
     const transactions = data.map(toInventoryTransaction);
     const meta = buildMeta(total, query.page ?? 1, query.limit ?? 10);
     return { data: transactions, meta };
-  }
-
-  /** Marks expired active batches as `EXPIRED`, deducts stock, and refreshes stock status. */
-  async processBatchExpiry(): Promise<{
-    processed: number;
-    expiredBatches: string[];
-  }> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const expiredBatches =
-      await this.inventoryDb.findExpiredActiveBatches(today);
-
-    if (!expiredBatches.length) {
-      return { processed: 0, expiredBatches: [] };
-    }
-
-    this.logger.log(
-      `Found ${expiredBatches.length} expired active batch(es) to process`,
-    );
-
-    let processedCount = 0;
-    const processedBatchCodes: string[] = [];
-
-    for (const batch of expiredBatches) {
-      try {
-        const result = await this.inventoryDb.runInTransaction(async (tx) => {
-          // Lock row for concurrency safety
-          await this.inventoryDb.lockInventoryRow(batch.inventoryId, tx);
-
-          // Guarded status transition (ACTIVE -> EXPIRED)
-          const updatedCount = await this.inventoryDb.expireActiveBatch(
-            batch.id,
-            tx,
-          );
-
-          if (updatedCount === 0) {
-            return null; // Concurrently processed
-          }
-
-          const inventory = await this.inventoryDb.findById(
-            batch.inventoryId,
-            tx,
-          );
-          if (!inventory) {
-            return null;
-          }
-
-          const previousQty = inventory.qtyOnHand;
-          const previousStatus = inventory.stockStatus;
-          const deductQty = batch.qtyOnHand;
-
-          // Deduct expired batch stock
-          if (deductQty > 0) {
-            const newQty = Math.max(0, inventory.qtyOnHand - deductQty);
-            await this.inventoryDb.updateInventory(
-              batch.inventoryId,
-              { qtyOnHand: newQty },
-              tx,
-            );
-
-            await this.inventoryDb.createTransaction(
-              {
-                inventoryId: batch.inventoryId,
-                type: TransactionType.ADJUSTMENT_DECREASE,
-                quantity: deductQty,
-                reason: null,
-                note: `Batch ${batch.batchCode} expired (expiry: ${batch.expiryDate.toISOString().split('T')[0]})`,
-                performedBy: AuditActorType.SYSTEM_TRIGGER,
-              },
-              tx,
-            );
-          }
-
-          const nextStatus = await this.inventoryDb.refreshInventoryStatus(
-            batch.inventoryId,
-            tx,
-          );
-
-          const refreshed = await this.inventoryDb.findById(
-            batch.inventoryId,
-            tx,
-          );
-
-          return {
-            inventoryId: batch.inventoryId,
-            batchId: batch.id,
-            batchCode: batch.batchCode,
-            productName: inventory.product.name,
-            deductQty,
-            previousQty,
-            newQty: refreshed
-              ? refreshed.qtyOnHand
-              : Math.max(0, inventory.qtyOnHand - deductQty),
-            previousStatus,
-            nextStatus,
-          };
-        });
-
-        if (result) {
-          processedCount++;
-          processedBatchCodes.push(result.batchCode);
-
-          this.logger.log(
-            `Batch "${result.batchCode}" for "${result.productName}" expired: deducted ${result.deductQty} units. New stock: ${result.newQty} (${result.nextStatus})`,
-          );
-
-          // Fire-and-forget audit log after transaction commit
-          this.auditService
-            .log({
-              entityType: 'INVENTORY_BATCH',
-              entityId: result.batchId,
-              action: 'BATCH_EXPIRED',
-              actorType: AuditActorType.SYSTEM_TRIGGER,
-              details: {
-                inventoryId: result.inventoryId,
-                batchId: result.batchId,
-                batchCode: result.batchCode,
-                productName: result.productName,
-                deductedQty: result.deductQty,
-                previousQty: result.previousQty,
-                newQty: result.newQty,
-                previousStatus: result.previousStatus,
-                newStatus: result.nextStatus,
-              },
-            })
-            .catch((err) => {
-              this.logger.error(
-                `Failed to record audit log for expired batch: ${(err as Error).message}`,
-              );
-            });
-
-          // Stock alert notification if status transitioned to LOW_STOCK or OUT_OF_STOCK
-          if (
-            result.nextStatus !== result.previousStatus &&
-            (result.nextStatus === StockStatus.LOW_STOCK ||
-              result.nextStatus === StockStatus.OUT_OF_STOCK)
-          ) {
-            this.logger.warn(
-              `Batch expiry caused stock alert: "${result.productName}" is now ${result.nextStatus}`,
-            );
-            this.notificationService
-              .dispatchStockNotification(
-                result.inventoryId,
-                result.productName,
-                result.nextStatus as StockStatus,
-              )
-              .catch((err) => {
-                this.logger.error(
-                  `Failed to dispatch stock notification: ${(err as Error).message}`,
-                );
-              });
-          }
-        }
-      } catch (error) {
-        this.logger.error(
-          `Error expiring batch "${batch.batchCode}" (${batch.id}): ${(error as Error).message}`,
-          (error as Error).stack,
-        );
-      }
-    }
-
-    return {
-      processed: processedCount,
-      expiredBatches: processedBatchCodes,
-    };
   }
 }

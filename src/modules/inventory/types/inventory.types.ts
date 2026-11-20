@@ -5,11 +5,13 @@ import {
   Product as PrismaProduct,
   Category as PrismaCategory,
   StockStatus,
-  BatchStatus,
   TransactionType,
   AdjustmentReason,
 } from '@prisma/client';
 import { PaginationMeta } from '../../../common/pagination';
+import { IInventoryBatch } from '../../batch/types';
+
+export type { IInventoryBatch };
 
 export type InventoryWithRelations = PrismaInventory & {
   product: PrismaProduct & {
@@ -22,16 +24,6 @@ export type InventoryWithRelations = PrismaInventory & {
     transactions?: number;
   };
 };
-
-export interface IInventoryBatch {
-  id: string;
-  batchCode: string;
-  qtyOnHand: number;
-  expiryDate: Date;
-  status: BatchStatus;
-  createdAt: Date;
-  updatedAt: Date;
-}
 
 export interface IInventoryTransaction {
   id: string;

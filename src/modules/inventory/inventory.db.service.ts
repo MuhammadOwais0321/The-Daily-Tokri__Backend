@@ -57,70 +57,12 @@ export class InventoryDbService {
     });
   }
 
-  async findBatchById(batchId: string, tx?: Prisma.TransactionClient) {
-    const client = tx ?? this.db;
-    return client.inventoryBatch.findUnique({
-      where: { id: batchId },
-    });
-  }
-
-  async findExpiredActiveBatches(today: Date, tx?: Prisma.TransactionClient) {
-    const client = tx ?? this.db;
-    return client.inventoryBatch.findMany({
-      where: {
-        status: BatchStatus.ACTIVE,
-        expiryDate: {
-          lt: today,
-        },
-      },
-      include: {
-        inventory: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                batchTracked: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        expiryDate: 'asc',
-      },
-    });
-  }
-
-  async expireActiveBatch(
-    batchId: string,
-    tx?: Prisma.TransactionClient,
-  ): Promise<number> {
-    const client = tx ?? this.db;
-    const result = await client.inventoryBatch.updateMany({
-      where: {
-        id: batchId,
-        status: BatchStatus.ACTIVE,
-      },
-      data: {
-        status: BatchStatus.EXPIRED,
-      },
-    });
-    return result.count;
-  }
-
   async lockInventoryRow(
     id: string,
     tx: Prisma.TransactionClient,
   ): Promise<void> {
     await tx.$queryRaw(
       Prisma.sql`SELECT id FROM "inventory" WHERE id = ${id} FOR UPDATE;`,
-    );
-  }
-
-  async lockBatchRow(id: string, tx: Prisma.TransactionClient): Promise<void> {
-    await tx.$queryRaw(
-      Prisma.sql`SELECT id FROM "inventory_batches" WHERE id = ${id} FOR UPDATE;`,
     );
   }
 
@@ -311,16 +253,6 @@ export class InventoryDbService {
     });
   }
 
-  async createBatch(
-    data: Prisma.InventoryBatchUncheckedCreateInput,
-    tx?: Prisma.TransactionClient,
-  ) {
-    const client = tx ?? this.db;
-    return client.inventoryBatch.create({
-      data,
-    });
-  }
-
   async createTransaction(
     data: Prisma.InventoryTransactionUncheckedCreateInput,
     tx?: Prisma.TransactionClient,
@@ -341,18 +273,6 @@ export class InventoryDbService {
       where: { id },
       data,
       include: this.inventoryInclude,
-    });
-  }
-
-  async updateBatch(
-    id: string,
-    data: Prisma.InventoryBatchUpdateInput,
-    tx?: Prisma.TransactionClient,
-  ) {
-    const client = tx ?? this.db;
-    return client.inventoryBatch.update({
-      where: { id },
-      data,
     });
   }
 

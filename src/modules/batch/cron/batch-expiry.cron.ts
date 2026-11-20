@@ -1,13 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { InventoryService } from '../inventory.service';
+import { BatchService } from '../batch.service';
 
 /** Scheduled job that expires past-due inventory batches every 5 minutes. */
 @Injectable()
 export class BatchExpiryCron {
   private readonly logger = new Logger(BatchExpiryCron.name);
 
-  constructor(private readonly inventoryService: InventoryService) {}
+  constructor(private readonly batchService: BatchService) {}
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async handleBatchExpiry(): Promise<void> {
@@ -15,7 +15,7 @@ export class BatchExpiryCron {
       'Running scheduled batch expiry check (every 5 minutes)...',
     );
     try {
-      const result = await this.inventoryService.processBatchExpiry();
+      const result = await this.batchService.processBatchExpiry();
       if (result.processed > 0) {
         this.logger.log(
           `Batch expiry sweep completed: ${result.processed} batch(es) marked EXPIRED [${result.expiredBatches.join(', ')}].`,

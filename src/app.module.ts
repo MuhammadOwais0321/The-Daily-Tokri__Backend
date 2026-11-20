@@ -20,6 +20,7 @@ import { CategoryModule } from './modules/category/category.module';
 import { BrandModule } from './modules/brands/brand.module';
 import { SupplierModule } from './modules/supplier/supplier.module';
 import { ProductsModule } from './modules/products/products.module';
+import { BatchModule } from './modules/batch/batch.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
@@ -48,6 +49,7 @@ import { BannerModule } from './modules/banners/banner.module';
     BrandModule,
     SupplierModule,
     ProductsModule,
+    BatchModule,
     InventoryModule,
     NotificationModule,
     DashboardModule,

@@ -1,32 +1,19 @@
 import {
-  InventoryBatch as PrismaInventoryBatch,
   InventoryTransaction as PrismaInventoryTransaction,
   Product as PrismaProduct,
   Category as PrismaCategory,
 } from '@prisma/client';
 import {
-  IInventoryBatch,
   IInventoryTransaction,
   IInventoryResponse,
   IInventorySummary,
   IAvailableProduct,
   InventoryWithRelations,
 } from '../types';
+import { toInventoryBatch } from '../../batch/mappers';
 import { toDecimalString } from '../../../common/utils';
 
-export { toDecimalString };
-
-export function toInventoryBatch(batch: PrismaInventoryBatch): IInventoryBatch {
-  return {
-    id: batch.id,
-    batchCode: batch.batchCode,
-    qtyOnHand: batch.qtyOnHand,
-    expiryDate: batch.expiryDate,
-    status: batch.status,
-    createdAt: batch.createdAt,
-    updatedAt: batch.updatedAt,
-  };
-}
+export { toDecimalString, toInventoryBatch };
 
 export function toInventoryTransaction(
   tx: PrismaInventoryTransaction & {
