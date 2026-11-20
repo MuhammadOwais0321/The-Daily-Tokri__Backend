@@ -175,7 +175,7 @@ export class AuthService {
     return {
       httpOnly: true,
       secure: isProd,
-      sameSite: isProd ? 'strict' : 'lax',
+      sameSite: isProd ? 'none' : 'lax',
       path: '/',
       maxAge,
     };
@@ -191,7 +191,7 @@ export class AuthService {
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: isProd,
-      sameSite: isProd ? 'strict' : 'lax',
+      sameSite: isProd ? 'none' : 'lax',
       path: '/',
     });
   }

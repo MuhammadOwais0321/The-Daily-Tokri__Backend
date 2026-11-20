@@ -13,7 +13,10 @@ async function bootstrap() {
   const isProd = configService.get<string>('NODE_ENV') === 'production';
 
   app.enableCors({
-    origin: true,
+    origin: [
+      'http://localhost:3000',
+      'https://the-daily-tokri.vercel.app',
+    ],
     credentials: true,
   });
 
