@@ -149,4 +149,19 @@ export class NotificationDbService {
       where: { userId },
     });
   }
+
+  /** Fetches a user's delivery details (`email`, `name`, active status) alongside notification preferences. */
+  async getUserNotificationTarget(userId: string) {
+    return this.db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        isActive: true,
+        deletedAt: true,
+        preferences: true,
+      },
+    });
+  }
 }

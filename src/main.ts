@@ -12,11 +12,20 @@ async function bootstrap() {
 
   const isProd = configService.get<string>('NODE_ENV') === 'production';
 
+  const defaultOrigins = [
+    'http://localhost:3000',
+    'https://the-daily-tokri.vercel.app',
+  ];
+  const rawCorsOrigins = configService.get<string>('CORS_ORIGINS');
+  const configuredOrigins = rawCorsOrigins
+    ? rawCorsOrigins
+        .split(',')
+        .map((origin) => origin.trim().replace(/\/+$/, ''))
+        .filter(Boolean)
+    : [];
+
   app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'https://the-daily-tokri.vercel.app',
-    ],
+    origin: configuredOrigins.length > 0 ? configuredOrigins : defaultOrigins,
     credentials: true,
   });
 

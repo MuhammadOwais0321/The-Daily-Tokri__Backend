@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { EmailService } from '../../common/services/email.service';
 import { DatabaseModule } from '../../database';
 import { NotificationRetentionCron } from './cron';
 import { NotificationController } from './notification.controller';
@@ -12,6 +13,7 @@ import { NotificationService } from './notification.service';
     NotificationService,
     NotificationDbService,
     NotificationRetentionCron,
+    EmailService,
   ],
   exports: [NotificationService, NotificationDbService],
 })

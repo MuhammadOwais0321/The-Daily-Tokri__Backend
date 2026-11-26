@@ -126,14 +126,14 @@ export class CartService {
         targetQuantity = existingItem.quantity + dto.quantity;
       }
 
-      if (targetQuantity > availableStock) {
-        throw new BadRequestException(`Only ${availableStock} units available`);
-      }
-
       if (targetQuantity > product.maximumOrderQuantity) {
         throw new BadRequestException(
           `Maximum order quantity for this product is ${product.maximumOrderQuantity}`,
         );
+      }
+
+      if (targetQuantity > availableStock) {
+        throw new BadRequestException(`Only ${availableStock} units available`);
       }
 
       if (existingItem) {
@@ -195,14 +195,14 @@ export class CartService {
         );
       }
 
-      if (dto.quantity > availableStock) {
-        throw new BadRequestException(`Only ${availableStock} units available`);
-      }
-
       if (dto.quantity > product.maximumOrderQuantity) {
         throw new BadRequestException(
           `Maximum order quantity for this product is ${product.maximumOrderQuantity}`,
         );
+      }
+
+      if (dto.quantity > availableStock) {
+        throw new BadRequestException(`Only ${availableStock} units available`);
       }
 
       await this.cartDb.updateCartItemQuantity(itemId, dto.quantity, tx);

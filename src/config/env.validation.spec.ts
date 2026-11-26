@@ -17,6 +17,20 @@ describe('validateEnvironment', () => {
     expect(validated.PORT).toBe(4000);
   });
 
+  it('should accept optional CORS_ORIGINS in environment config', () => {
+    const config = {
+      JWT_SECRET: 'super-secure-jwt-secret-key-123456',
+      JWT_REFRESH_SECRET: 'super-secure-refresh-key-123456',
+      DATABASE_URL: 'postgresql://localhost:5432/mydb',
+      CORS_ORIGINS: 'http://localhost:3000,https://example.vercel.app',
+    };
+
+    const validated = validateEnvironment(config);
+    expect(validated.CORS_ORIGINS).toBe(
+      'http://localhost:3000,https://example.vercel.app',
+    );
+  });
+
   it('should throw an error and fail startup when JWT_SECRET is missing', () => {
     const config = {
       PORT: '4000',

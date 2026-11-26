@@ -34,6 +34,10 @@ export class EnvironmentVariables {
   @IsOptional()
   URL_PREFIX?: string;
 
+  @IsString()
+  @IsOptional()
+  CORS_ORIGINS?: string;
+
   @IsNumber()
   @IsOptional()
   PORT?: number;
@@ -81,6 +85,10 @@ export class EnvironmentVariables {
   @IsNumber()
   @IsOptional()
   NOTIFICATION_RETENTION_DAYS?: number;
+
+  @IsNumber()
+  @IsOptional()
+  AUDIT_RETENTION_DAYS?: number;
 }
 
 export function validateEnvironment(

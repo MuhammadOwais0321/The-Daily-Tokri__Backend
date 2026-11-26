@@ -14,18 +14,6 @@ export class AuditDbService {
 
   constructor(private readonly db: DatabaseService) {}
 
-  private getTodayUtcRange(): { start: Date; end: Date } {
-    const now = new Date();
-    const year = now.getUTCFullYear();
-    const month = now.getUTCMonth();
-    const day = now.getUTCDate();
-
-    return {
-      start: new Date(Date.UTC(year, month, day, 0, 0, 0, 0)),
-      end: new Date(Date.UTC(year, month, day, 23, 59, 59, 999)),
-    };
-  }
-
   /** Persists a single audit log entry. */
   async create(data: ICreateAuditData): Promise<AuditLog> {
     return this.db.auditLog.create({
@@ -40,20 +28,28 @@ export class AuditDbService {
     });
   }
 
-  /** Queries today's audit logs (UTC day boundary) with optional entityType and actorType filters. */
+  /** Queries audit logs with optional search, entityType, action, actorType, and date range filters. */
   async findMany(query: AuditQueryDto) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const { start, end } = this.getTodayUtcRange();
+    const where: Prisma.AuditLogWhereInput = {};
 
-    const where: Prisma.AuditLogWhereInput = {
-      createdAt: {
-        gte: start,
-        lte: end,
-      },
-    };
+    if (query.dateFrom || query.dateTo) {
+      where.createdAt = {};
+      if (query.dateFrom) {
+        where.createdAt.gte = new Date(query.dateFrom);
+      }
+      if (query.dateTo) {
+        const toDate = new Date(query.dateTo);
+        // If only YYYY-MM-DD was provided, include the entire day up to 23:59:59.999Z
+        if (/^\d{4}-\d{2}-\d{2}$/.test(query.dateTo)) {
+          toDate.setUTCHours(23, 59, 59, 999);
+        }
+        where.createdAt.lte = toDate;
+      }
+    }
 
     if (query.entityType) {
       where.entityType = {
@@ -62,9 +58,36 @@ export class AuditDbService {
       };
     }
 
+    if (query.action) {
+      where.action = {
+        contains: query.action,
+        mode: 'insensitive',
+      };
+    }
+
+    if (query.entityId) {
+      where.entityId = query.entityId;
+    }
+
+    if (query.actorId) {
+      where.actorId = query.actorId;
+    }
+
     if (query.actorType) {
       where.actorType = query.actorType;
     }
+
+    if (query.q?.trim()) {
+      const term = query.q.trim();
+      where.OR = [
+        { action: { contains: term, mode: 'insensitive' } },
+        { entityType: { contains: term, mode: 'insensitive' } },
+        { entityId: { contains: term, mode: 'insensitive' } },
+        { actorId: { contains: term, mode: 'insensitive' } },
+      ];
+    }
+
+    const sortOrder = query.sortOrder === 'asc' ? 'asc' : 'desc';
 
     try {
       const [data, total] = await Promise.all([
@@ -72,7 +95,7 @@ export class AuditDbService {
           where,
           skip,
           take: limit,
-          orderBy: { createdAt: 'desc' },
+          orderBy: { createdAt: sortOrder },
         }),
         this.db.auditLog.count({ where }),
       ]);
@@ -85,5 +108,18 @@ export class AuditDbService {
       );
       throw new InternalServerErrorException('Failed to retrieve audit logs');
     }
+  }
+
+  /** Deletes audit logs created strictly before `cutoffDate`. */
+  async deleteOlderThan(cutoffDate: Date): Promise<number> {
+    const result = await this.db.auditLog.deleteMany({
+      where: {
+        createdAt: {
+          lt: cutoffDate,
+        },
+      },
+    });
+
+    return result.count;
   }
 }

@@ -1,4 +1,4 @@
-import { ProductImage, ProductAllergen } from '@prisma/client';
+import { BatchStatus, ProductImage, ProductAllergen } from '@prisma/client';
 import {
   IProductImage,
   IProductAllergen,
@@ -11,6 +11,42 @@ import {
 import { toDecimalString } from '../../../common/utils';
 
 export { toDecimalString };
+
+/**
+ * Computes the customer-safe maximum orderable quantity without exposing raw warehouse stock
+ * above `maximumOrderQuantity` (or above `lowStockThreshold` when sufficient).
+ */
+function computePublicMaxAllowedQuantity(
+  product: ProductWithRelations,
+): number {
+  if (!product.inventory) {
+    return 0;
+  }
+
+  let availableStock: number;
+  if (product.batchTracked) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    availableStock = (product.inventory.batches || [])
+      .filter(
+        (b) =>
+          b.status === BatchStatus.ACTIVE && new Date(b.expiryDate) >= today,
+      )
+      .reduce((sum, b) => sum + Math.max(0, b.qtyOnHand), 0);
+  } else {
+    availableStock = Math.max(0, product.inventory.qtyOnHand);
+  }
+
+  const threshold = product.inventory.lowStockThreshold ?? 0;
+  if (
+    availableStock <= threshold ||
+    availableStock < product.maximumOrderQuantity
+  ) {
+    return Math.max(0, Math.min(product.maximumOrderQuantity, availableStock));
+  }
+
+  return product.maximumOrderQuantity;
+}
 
 export function toProductImage(img: ProductImage): IProductImage {
   return {
@@ -73,6 +109,7 @@ export function toPublicProductResponse(
         }
       : null,
     stockStatus: product.inventory?.stockStatus,
+    maxAllowedQuantity: computePublicMaxAllowedQuantity(product),
     images: sortedImages,
     allergens,
     createdAt: product.createdAt,
@@ -130,6 +167,7 @@ export function toPublicProductSummary(
     brandName: product.brand?.name ?? null,
     primaryImage: primaryImg?.url ?? null,
     stockStatus: product.inventory?.stockStatus,
+    maxAllowedQuantity: computePublicMaxAllowedQuantity(product),
     createdAt: product.createdAt,
   };
 }

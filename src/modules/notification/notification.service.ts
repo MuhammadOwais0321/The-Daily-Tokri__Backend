@@ -3,11 +3,13 @@ import {
   Logger,
   MessageEvent,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { StockStatus, UserRole } from '@prisma/client';
 import { interval, merge, Observable, Subject } from 'rxjs';
 import { finalize, map } from 'rxjs/operators';
 import { buildMeta, PaginationMeta } from '../../common/pagination';
+import { EmailService } from '../../common/services/email.service';
 import { DatabaseService } from '../../database/database.service';
 import { NotificationQueryDto } from './dto';
 import { toNotificationResponse } from './mappers';
@@ -19,6 +21,22 @@ import {
   IUnreadCountResponse,
 } from './types';
 
+/** Important transactional and store-alert events eligible for email delivery when `emailNotification` is enabled. */
+const EMAIL_ELIGIBLE_EVENTS = new Set<string>([
+  // Customer events
+  'PAYMENT_CONFIRMED',
+  'PAYMENT_FAILED',
+  'PAYMENT_REFUNDED',
+  'ORDER_STATUS_READY_FOR_PICKUP',
+  'ORDER_STATUS_READY_FOR_DELIVERY',
+  'ORDER_STATUS_DELIVERED',
+  'ORDER_CANCELLED',
+  // Admin events
+  'PAYMENT_RECEIVED',
+  'STOCK_OUT',
+  'ORDER_CANCELLED_USER',
+]);
+
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
@@ -29,6 +47,7 @@ export class NotificationService {
   constructor(
     private readonly db: DatabaseService,
     private readonly notificationDb: NotificationDbService,
+    @Optional() private readonly emailService?: EmailService,
   ) {}
 
   /** Retrieves paginated notifications for the authenticated user. */
@@ -109,7 +128,10 @@ export class NotificationService {
     );
   }
 
-  /** Upserts an in-app notification for a user and pushes it over SSE if `pushNotification` is enabled. */
+  /**
+   * Upserts an in-app notification for a user, pushes it over SSE if `pushNotification` is enabled,
+   * and emails eligible important events when `emailNotification` is enabled.
+   */
   async dispatchUserNotification(
     userId: string,
     data: IDispatchNotificationPayload,
@@ -118,11 +140,45 @@ export class NotificationService {
       const record = await this.notificationDb.upsertForUser(userId, data);
       const mapped = toNotificationResponse(record);
 
-      const prefs = await this.notificationDb.getUserPreferences(userId);
-      const pushAllowed = prefs ? prefs.pushNotification : true;
+      const target =
+        await this.notificationDb.getUserNotificationTarget(userId);
+      const pushAllowed = target?.preferences
+        ? target.preferences.pushNotification
+        : true;
+      const emailAllowed = target?.preferences
+        ? target.preferences.emailNotification
+        : true;
 
       if (pushAllowed) {
         this.emitToUser(userId, mapped);
+      }
+
+      const isEmailEligible =
+        data.sendEmail ??
+        (Boolean(data.referenceEvent) &&
+          EMAIL_ELIGIBLE_EVENTS.has(data.referenceEvent!));
+
+      if (
+        this.emailService &&
+        isEmailEligible &&
+        emailAllowed &&
+        target &&
+        target.isActive &&
+        !target.deletedAt &&
+        !target.email.startsWith('[DELETED]')
+      ) {
+        await this.emailService
+          .sendNotificationEmail({
+            to: target.email,
+            recipientName: target.name,
+            title: data.title,
+            message: data.message,
+          })
+          .catch((emailErr) => {
+            this.logger.error(
+              `Failed to send notification email to user "${userId}": ${(emailErr as Error).message}`,
+            );
+          });
       }
 
       this.logger.log(

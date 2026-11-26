@@ -17,7 +17,18 @@ export class ProductsDbService {
       orderBy: { sortOrder: 'asc' as const },
     },
     allergens: true,
-    inventory: true,
+    inventory: {
+      include: {
+        batches: {
+          where: { status: 'ACTIVE' as const },
+          select: {
+            qtyOnHand: true,
+            expiryDate: true,
+            status: true,
+          },
+        },
+      },
+    },
   };
 
   async runInTransaction<T>(

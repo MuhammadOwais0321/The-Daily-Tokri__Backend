@@ -28,6 +28,8 @@ export interface IDispatchNotificationPayload {
   message: string;
   referenceId?: string;
   referenceEvent?: string;
+  /** Optional explicit override; otherwise determined from `EMAIL_ELIGIBLE_EVENTS`. */
+  sendEmail?: boolean;
 }
 
 export interface INotificationStreamEvent {

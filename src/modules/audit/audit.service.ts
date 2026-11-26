@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { buildMeta } from '../../common/pagination';
 import { AuditDbService } from './audit.db.service';
 import { AuditQueryDto } from './dto';
@@ -26,8 +26,19 @@ export class AuditService {
     }
   }
 
-  /** Returns a paginated list of today's audit logs. */
+  /** Returns a paginated list of audit logs with optional filters and date range. */
   async findAll(query: AuditQueryDto): Promise<IAuditLogListResponse> {
+    if (query.dateFrom && query.dateTo) {
+      const from = new Date(query.dateFrom);
+      const to = new Date(query.dateTo);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(query.dateTo)) {
+        to.setUTCHours(23, 59, 59, 999);
+      }
+      if (from > to) {
+        throw new BadRequestException('dateFrom must not be later than dateTo');
+      }
+    }
+
     const { data, total, page, limit } = await this.auditDb.findMany(query);
     return {
       data: data.map(toAuditLogResponse),

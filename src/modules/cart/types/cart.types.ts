@@ -59,7 +59,6 @@ export interface ICartItemProduct {
   isActive: boolean;
   isVisible: boolean;
   stockStatus: StockStatus;
-  availableStock: number;
 }
 
 export interface ICartItemResponse {

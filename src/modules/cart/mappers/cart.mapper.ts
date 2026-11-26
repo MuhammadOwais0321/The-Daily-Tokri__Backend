@@ -16,9 +16,6 @@ export function toCartItemResponse(
 ): ICartItemResponse {
   const product = item.product;
 
-  const availableStock =
-    stockInfo?.availableStock ??
-    (product.inventory ? Math.max(0, product.inventory.qtyOnHand) : 0);
   const isAvailable =
     stockInfo?.isAvailable ?? (product.isActive && product.isVisible);
   const maxAllowedQuantity =
@@ -44,7 +41,6 @@ export function toCartItemResponse(
     isActive: product.isActive,
     isVisible: product.isVisible,
     stockStatus: product.inventory?.stockStatus ?? StockStatus.OUT_OF_STOCK,
-    availableStock,
   };
 
   return {

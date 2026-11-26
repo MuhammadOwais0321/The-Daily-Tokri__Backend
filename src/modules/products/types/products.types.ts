@@ -6,6 +6,8 @@ import {
   Brand as PrismaBrand,
   Supplier as PrismaSupplier,
   Inventory as PrismaInventory,
+  InventoryBatch as PrismaInventoryBatch,
+  BatchStatus,
   StorageType,
   UnitOfMeasure,
   AllergenPresence,
@@ -19,7 +21,15 @@ export type ProductWithRelations = PrismaProduct & {
   supplier?: PrismaSupplier | null;
   images?: PrismaProductImage[];
   allergens?: PrismaProductAllergen[];
-  inventory?: PrismaInventory | null;
+  inventory?:
+    | (PrismaInventory & {
+        batches?: Array<
+          Pick<PrismaInventoryBatch, 'qtyOnHand' | 'expiryDate' | 'status'> & {
+            status: BatchStatus;
+          }
+        >;
+      })
+    | null;
 };
 
 export interface IProductImage {
@@ -65,6 +75,7 @@ export interface IPublicProduct {
     slug: string;
   } | null;
   stockStatus?: StockStatus | string;
+  maxAllowedQuantity: number;
   images: IProductImage[];
   allergens: IProductAllergen[];
   createdAt: Date;
@@ -104,6 +115,7 @@ export interface IPublicProductSummary {
   brandName?: string | null;
   primaryImage?: string | null;
   stockStatus?: StockStatus | string;
+  maxAllowedQuantity: number;
   createdAt: Date;
 }
 
