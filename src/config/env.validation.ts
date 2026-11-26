@@ -82,6 +82,14 @@ export class EnvironmentVariables {
   @IsOptional()
   MOCK_PAYMENT_WEBHOOK_SECRET?: string;
 
+  @IsString()
+  @IsOptional()
+  BREVO_API_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  EMAIL_FROM?: string;
+
   @IsNumber()
   @IsOptional()
   NOTIFICATION_RETENTION_DAYS?: number;

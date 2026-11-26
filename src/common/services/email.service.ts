@@ -1,7 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
-import type { Transporter } from 'nodemailer';
 
 export interface SendEmailOptions {
   to: string;
@@ -17,6 +15,8 @@ export interface SendNotificationEmailOptions {
   message: string;
 }
 
+const BREVO_EMAIL_API_URL = 'https://api.brevo.com/v3/smtp/email';
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -29,52 +29,58 @@ function escapeHtml(value: string): string {
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private transporter: Transporter | null = null;
 
-  constructor(private readonly configService: ConfigService) {
-    const host = this.configService.get<string>('SMTP_HOST');
-    const port = Number(this.configService.get<number>('SMTP_PORT')) || 587;
-    const user = this.configService.get<string>('SMTP_USER');
-    const pass = this.configService.get<string>('SMTP_PASS');
+  constructor(private readonly configService: ConfigService) {}
 
-    if (user && pass) {
-      this.transporter = nodemailer.createTransport({
-        host: host || 'smtp.gmail.com',
-        port,
-        secure: port === 465,
-        auth: {
-          user,
-          pass,
-        },
-      });
-    }
-  }
-
-  /** Sends an email via configured SMTP or logs in dev mode when SMTP is unconfigured. */
+  /** Sends a transactional email via the Brevo HTTP API. */
   async sendMail(options: SendEmailOptions): Promise<boolean> {
-    const from =
-      this.configService.get<string>('EMAIL_FROM') ?? 'noreply@onlinemart.com';
+    const apiKey =
+      this.configService.get<string>('BREVO_API_KEY')?.trim() ||
+      process.env.BREVO_API_KEY?.trim();
+    const fromEmail =
+      this.configService.get<string>('EMAIL_FROM')?.trim() ||
+      process.env.EMAIL_FROM?.trim();
 
-    if (!this.transporter) {
-      this.logger.log(
-        `[DEV MODE] Email to ${options.to} | Subject: ${options.subject}${options.text ? ` | ${options.text}` : ''}`,
-      );
-      return true;
+    if (!apiKey) {
+      const message = 'BREVO_API_KEY is not configured in environment';
+      this.logger.error(message);
+      throw new Error(message);
     }
 
-    try {
-      await this.transporter.sendMail({
-        from,
-        to: options.to,
+    if (!fromEmail) {
+      const message = 'EMAIL_FROM is not configured in environment';
+      this.logger.error(message);
+      throw new Error(message);
+    }
+
+    const response = await fetch(BREVO_EMAIL_API_URL, {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: {
+          email: fromEmail,
+          name: 'The Daily Tokri',
+        },
+        to: [{ email: options.to }],
         subject: options.subject,
-        html: options.html,
-        text: options.text,
-      });
-      return true;
-    } catch (error) {
-      this.logger.error(`Failed to send email to ${options.to}`, error);
-      return false;
+        htmlContent: options.html,
+      }),
+    });
+
+    if (!response.ok) {
+      const responseBody = await response.text();
+      this.logger.error(
+        `Failed to send email to ${options.to} via Brevo (status ${response.status}): ${responseBody}`,
+      );
+      throw new Error(
+        `Brevo email API failed with status ${response.status}: ${responseBody}`,
+      );
     }
+
+    return true;
   }
 
   async sendVerificationCode(
